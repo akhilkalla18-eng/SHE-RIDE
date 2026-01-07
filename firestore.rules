@@ -63,21 +63,22 @@ service cloud.firestore {
      * This prevents unauthorized actions on non-existent documents.
      */
     function isExistingDoc() {
-      return resource != null;
+      return exists(path);
     }
-
+    
     /**
-     * A convenient combination of isOwner and isExistingDoc for update/delete operations.
+     * Verifies that the user is the owner of an existing document.
      */
     function isExistingOwner(userId) {
-      return isOwner(userId) && isExistingDoc();
+        return isOwner(userId) && isExistingDoc();
     }
+
 
     /**
      * Checks if the currently authenticated user is a participant in the ride.
      */
-    function isRideParticipant() {
-      return isSignedIn() && request.auth.uid in resource.data.participantIds;
+    function isRideParticipant(rideId) {
+      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/rides/$(rideId)).data.participantIds;
     }
 
     /**
@@ -109,7 +110,7 @@ service cloud.firestore {
       allow get: if isSignedIn(); // Allow any signed in user to get a profile for display purposes.
       allow list: if false;
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && areOwnershipFieldsImmutable(['id', 'email']);
+      allow update: if isOwner(userId) && areOwnershipFieldsImmutable(['id', 'email']);
       allow delete: if false;
     }
 
@@ -126,7 +127,7 @@ service cloud.firestore {
     match /pickupRequests/{pickupRequestId} {
       allow list, get: if isSignedIn();
       allow create: if isOwner(request.resource.data.riderId);
-      allow update, delete: if isExistingOwner(resource.data.riderId) && areOwnershipFieldsImmutable(['riderId']);
+      allow update, delete: if isOwner(resource.data.riderId) && areOwnershipFieldsImmutable(['riderId']);
     }
 
     /**
@@ -138,7 +139,7 @@ service cloud.firestore {
     match /serviceRequests/{serviceRequestId} {
       allow list, get: if isSignedIn();
       allow create: if isOwner(request.resource.data.passengerId);
-      allow update, delete: if isExistingOwner(resource.data.passengerId) && areOwnershipFieldsImmutable(['passengerId']);
+      allow update, delete: if isOwner(resource.data.passengerId) && areOwnershipFieldsImmutable(['passengerId']);
     }
 
     // --------------------------------
@@ -148,26 +149,22 @@ service cloud.firestore {
     /**
      * @description Manages confirmed ride documents.
      * @path /rides/{rideId}
-     * @allow (get) The rider or the passenger can get the ride document.
+     * @allow (get, update) The rider or the passenger can get or update the ride document.
      * @allow (create) An authenticated user can create a ride document.
      * @deny (list) Listing all rides is forbidden for privacy.
      */
     match /rides/{rideId} {
-      allow get: if isRideParticipant();
+      allow get, update: if isRideParticipant(rideId);
       allow list: if false;
       allow create: if isSignedIn();
-      allow update: if isExistingDoc() && isRideParticipant() && areOwnershipFieldsImmutable(['rideId', 'participantIds']);
-      allow delete: if isExistingDoc() && isRideParticipant();
+      allow delete: if isRideParticipant(rideId);
+          
+      // Chat subcollection rules
+      match /chats/{chatId} {
+        allow read, write: if isRideParticipant(rideId);
+      }
     }
 
-    /**
-     * @description Manages chat messages within a ride.
-     * @path /rides/{rideId}/chats/{chatId}
-     * @allow (get, list, create, update, delete) Only participants of the parent ride can access the chat.
-     */
-    match /rides/{rideId}/chats/{chatId} {
-      allow read, write: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/rides/$(rideId)).data.participantIds;
-    }
 
     // --------------------------------
     // SOS Alert Rules
