@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/firebase/provider";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { useFirestore } from "@/firebase";
+import { useFirestore, setDocumentNonBlocking } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
 
@@ -30,14 +30,17 @@ export default function SignupPage() {
     const city = formData.get("city") as string;
     const password = formData.get("password") as string;
 
-    if (!auth || !firestore) return;
+    if (!auth || !firestore) {
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       // Create user profile in Firestore
-      await setDoc(doc(firestore, "users", user.uid), {
+      const userProfileData = {
         id: user.uid,
         name: fullName,
         email: email,
@@ -46,7 +49,9 @@ export default function SignupPage() {
         profileVerified: false,
         isRider: false,
         isPassenger: false,
-      });
+      };
+
+      setDocumentNonBlocking(doc(firestore, "users", user.uid), userProfileData, { merge: false });
       
       toast({
         title: "Account Created!",
@@ -124,3 +129,5 @@ export default function SignupPage() {
     </>
   )
 }
+
+    

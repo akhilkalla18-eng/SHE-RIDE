@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useDoc, useFirebase, useMemoFirebase } from "@/firebase";
+import { useDoc, useFirebase, useMemoFirebase, updateDocumentNonBlocking } from "@/firebase";
 import { type UserProfile } from "@/lib/schemas";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { CheckCircle, Shield } from "lucide-react";
 import React from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -26,7 +26,7 @@ export default function ProfilePage() {
 
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
-    const handleProfileUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleProfileUpdate = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!userProfileRef) return;
         setIsLoading(true);
@@ -34,31 +34,21 @@ export default function ProfilePage() {
         const name = formData.get("name") as string;
         const city = formData.get("city") as string;
 
-        try {
-            await updateDoc(userProfileRef, { name, city });
-            toast({ title: "Profile updated!" });
-        } catch (error: any) {
-            toast({ title: "Error updating profile", description: error.message, variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
+        updateDocumentNonBlocking(userProfileRef, { name, city });
+        toast({ title: "Profile update request sent!" });
+        setIsLoading(false);
     }
 
-    const handleSafetyUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSafetyUpdate = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!userProfileRef) return;
         setIsLoading(true);
         const formData = new FormData(e.currentTarget);
         const emergencyContact = `${formData.get("emergency-name")} (${formData.get("emergency-phone")})`;
-
-        try {
-            await updateDoc(userProfileRef, { emergencyContact });
-            toast({ title: "Safety info updated!" });
-        } catch (error: any) {
-            toast({ title: "Error updating safety info", description: error.message, variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
+        
+        updateDocumentNonBlocking(userProfileRef, { emergencyContact });
+        toast({ title: "Safety info update request sent!" });
+        setIsLoading(false);
     }
 
     if (isProfileLoading) {
@@ -164,3 +154,5 @@ export default function ProfilePage() {
         </div>
     )
 }
+
+    

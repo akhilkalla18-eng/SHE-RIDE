@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/firebase/provider";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { initiateEmailSignIn } from "@/firebase";
 import Link from "next/link"
 import { useRouter } from "next/navigation";
 import React from "react";
@@ -16,32 +16,26 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       setIsLoading(true);
-      if (!auth) return;
+      if (!auth) {
+        setIsLoading(false);
+        return
+      };
 
       const formData = new FormData(e.currentTarget);
       const email = formData.get("email") as string;
       const password = formData.get("password") as string;
 
-      try {
-          await signInWithEmailAndPassword(auth, email, password);
-          toast({
-              title: "Login Successful",
-              description: "Welcome back!",
-          });
-          router.push("/dashboard");
-      } catch (error: any) {
-          console.error(error);
-          toast({
-              title: "Login Failed",
-              description: error.message,
-              variant: "destructive",
-          });
-      } finally {
-          setIsLoading(false);
-      }
+      initiateEmailSignIn(auth, email, password);
+      // We don't await here. The onAuthStateChanged listener in the provider will handle the redirect.
+      toast({
+          title: "Login attempt in progress...",
+          description: "You'll be redirected shortly.",
+      });
+      // A failsafe redirect in case the listener is slow
+      setTimeout(() => router.push("/dashboard"), 2000); 
   };
 
   return (
@@ -82,3 +76,5 @@ export default function LoginPage() {
     </>
   )
 }
+
+    

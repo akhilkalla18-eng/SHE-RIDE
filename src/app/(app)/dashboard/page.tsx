@@ -32,7 +32,7 @@ import {
   YAxis,
 } from "recharts"
 import React from "react"
-import { useCollection, useFirebase, useMemoFirebase } from "@/firebase"
+import { useFirebase } from "@/firebase"
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
 import { type RideRequest } from "@/lib/types"
 import { placeholderImages } from "@/lib/placeholder-images"
@@ -118,7 +118,7 @@ export default function Dashboard() {
   }, [firestore, user, isUserLoading]);
   
   if (isUserLoading || loading) {
-    return <div>Loading...</div>
+    return <div className="flex items-center justify-center h-full"><p>Loading dashboard...</p></div>
   }
 
   if (!user) {
@@ -222,7 +222,7 @@ export default function Dashboard() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Avatar className="hidden h-9 w-9 sm:flex">
-                              <AvatarImage src={ride.user.avatarUrl} alt="Avatar" />
+                              <AvatarImage src={(ride.user as any).avatarUrl} alt="Avatar" />
                               <AvatarFallback>{ride.user.name?.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div className="font-medium">{ride.user.name}</div>
@@ -253,7 +253,7 @@ export default function Dashboard() {
                {upcomingRides.length > 0 ? upcomingRides.map(ride => (
                  <div className=" flex items-center gap-4" key={ride.id}>
                     <Avatar className="hidden h-9 w-9 sm:flex">
-                      <AvatarImage src={ride.user.avatarUrl} alt="Avatar" />
+                      <AvatarImage src={(ride.user as any).avatarUrl} alt="Avatar" />
                       <AvatarFallback>{ride.user.name?.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="grid gap-1">
@@ -277,3 +277,5 @@ export default function Dashboard() {
       </div>
   )
 }
+
+    
