@@ -2,39 +2,14 @@ rules_version = '2';
 
 /**
  * @name Firebase Security Rules for SheRide
- * @description These rules are generated in Prototyping Mode. They are designed to be
- *              highly secure from an authorization standpoint but flexible on data shapes
- *              to allow for rapid iteration and development.
+ * @description These rules enforce a secure, user-centric data access model for the SheRide application.
  *
  * @philosophy
- * This ruleset enforces a strict user-centric security model. Most data is either
- * owned directly by a user or shared between a specific, limited set of users (e.g.,
- * a rider and a passenger in a confirmed ride). The default posture is to deny access.
- *
- * @structure
- * - /users/{userId}: Private user data. Access is strictly limited to the owner.
- * - /pickupRequests/{pickupRequestId}: Publicly listable ride offers. Any user can read,
- *   but only the owner can create/modify.
- * - /serviceRequests/{serviceRequestId}: Publicly listable ride requests. Any user can read,
- *   but only the owner can create/modify.
- * - /rides/{rideId}: A top-level collection for confirmed rides. Access is granted only
- *   to the two participants (`participantIds` array) whose UIDs are denormalized
- *   directly onto the ride document.
- * - /sos_alerts/{sosAlertId}: A secure collection for emergency alerts. Users can create
- *   their own alerts, but cannot see alerts from others.
- *
- * @decisions
- * - Public Collections for Discovery: `/pickupRequests` and `/serviceRequests` are top-level
- *   collections to allow users to discover potential rides without needing to query
- *   through private user data, which would be a security risk.
- * - Denormalization for Authorization: Key authorization fields like `participantIds` are
- *   stored directly on the `/rides` documents. This avoids slow and costly `get()` calls in
- *   rules and makes security checks fast and efficient.
- * - Path-Based Security for User Profiles: User-specific data is stored under
- *   `/users/{userId}`. This pattern uses the document path itself to enforce ownership.
- * - Immutability of Ownership: Once a document is created, its core ownership fields
- *   (e.g., `riderId`, `passengerId`, `userId`) are immutable. This prevents users from
- *   re-assigning ownership of a resource after it has been created.
+ * 1. Default to Deny: All paths are closed by default. Access is granted explicitly.
+ * 2. User Ownership: Users have full control over their own private data (e.g., profiles).
+ * 3. Controlled Public Access: Certain collections (ride requests) are readable by any authenticated user to enable discoverability, but are only writable by their creators.
+ * 4. Shared Resource Control: Access to shared documents (like a confirmed ride) is restricted to only the participants involved in that specific document.
+ * 5. Immutable Ownership: Key ownership fields (e.g., `riderId`) cannot be changed after a document is created, preventing unauthorized re-assignment of resources.
  */
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -44,47 +19,34 @@ service cloud.firestore {
     // --------------------------------
 
     /**
-     * Checks if a user is authenticated.
+     * Returns true if a user is signed in.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * Checks if the authenticated user's UID matches the provided userId.
+     * Returns true if the requesting user's UID matches the provided userId.
      * This is the primary function for enforcing document ownership.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-
-    /**
-     * Verifies that a document exists before an update or delete operation.
-     * This prevents unauthorized actions on non-existent documents.
-     */
-    function isExistingDoc() {
-      return exists(path);
-    }
     
     /**
-     * Verifies that the user is the owner of an existing document.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && isExistingDoc();
-    }
-
-
-    /**
-     * Checks if the currently authenticated user is a participant in the ride.
+     * Returns true if the user is a participant in a given ride.
+     * It checks if the user's UID is present in the `participantIds` array of the ride document.
      */
     function isRideParticipant(rideId) {
       return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/rides/$(rideId)).data.participantIds;
     }
 
     /**
-     * Ensures core ownership fields cannot be changed on update.
+     * Ensures specified fields in a document cannot be changed during an update.
+     * This is used to make fields like creator IDs immutable.
      */
     function areOwnershipFieldsImmutable(fields) {
+      // Loop through a list of field names to check for immutability.
       let result = true;
       for (let field in fields) {
         if (request.resource.data[field] != resource.data[field]) {
@@ -94,98 +56,83 @@ service cloud.firestore {
       return result;
     }
 
-
     // --------------------------------
-    // User Profile Rules
+    // Collection Rules
     // --------------------------------
 
     /**
-     * @description Manages user profile documents.
-     * @path /users/{userId}
-     * @allow (get, update) A signed-in user can get or update their own profile document.
-     * @allow (create) A new user can create their own profile document.
-     * @deny (list) Listing all users is forbidden to protect privacy.
+     * /users/{userId}
+     * Stores private user profile information.
+     * - READ: Any signed-in user can read a profile (for display purposes).
+     * - CREATE: A user can only create their own profile document.
+     * - UPDATE: A user can only update their own profile.
+     * - DELETE: Not allowed.
      */
     match /users/{userId} {
-      allow get: if isSignedIn(); // Allow any signed in user to get a profile for display purposes.
-      allow list: if false;
+      allow get: if isSignedIn();
+      allow list: if false; // Disallow listing all users for privacy.
+      
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isOwner(userId) && areOwnershipFieldsImmutable(['id', 'email']);
       allow delete: if false;
     }
 
-    // --------------------------------
-    // Public Request Collections
-    // --------------------------------
-
     /**
-     * @description Manages public pickup requests (offers) from riders.
-     * @path /pickupRequests/{pickupRequestId}
-     * @allow (list, get) Any authenticated user can see open ride offers.
-     * @allow (create, update, delete) Only the rider can manage their own request.
+     * /pickupRequests/{pickupRequestId}
+     * Stores ride offers from riders.
+     * - READ: Any authenticated user can read the list of offers to find a ride.
+     * - WRITE: Only the owner (the rider) can create, update, or delete their own offer.
      */
     match /pickupRequests/{pickupRequestId} {
-      allow list, get: if isSignedIn();
+      allow read: if isSignedIn();
+      
       allow create: if isOwner(request.resource.data.riderId);
       allow update, delete: if isOwner(resource.data.riderId) && areOwnershipFieldsImmutable(['riderId']);
     }
 
     /**
-     * @description Manages public service requests from passengers.
-     * @path /serviceRequests/{serviceRequestId}
-     * @allow (list, get) Any authenticated user can see open ride requests.
-     * @allow (create, update, delete) Only the passenger can manage their own request.
+     * /serviceRequests/{serviceRequestId}
+     * Stores ride requests from passengers.
+     * - READ: Any authenticated user can read the list of requests to find a passenger.
+     * - WRITE: Only the owner (the passenger) can create, update, or delete their own request.
      */
     match /serviceRequests/{serviceRequestId} {
-      allow list, get: if isSignedIn();
+      allow read: if isSignedIn();
+      
       allow create: if isOwner(request.resource.data.passengerId);
       allow update, delete: if isOwner(resource.data.passengerId) && areOwnershipFieldsImmutable(['passengerId']);
     }
 
-    // --------------------------------
-    // Ride & Chat Rules
-    // --------------------------------
-
     /**
-     * @description Manages confirmed ride documents.
-     * @path /rides/{rideId}
-     * @allow (get, update) The rider or the passenger can get or update the ride document.
-     * @allow (create) An authenticated user can create a ride document.
-     * @allow (list) A user can only query for rides they are a part of.
-     * @deny (delete) Deleting rides is restricted.
+     * /rides/{rideId}
+     * Stores confirmed rides between two participants.
+     * - READ/WRITE: Access is granted only to users whose UID is in the `participantIds` array.
+     * - LIST: A user can ONLY query for rides where they are a participant. This is enforced
+     *   by requiring a `where` clause on the `participantIds` field in the query.
      */
     match /rides/{rideId} {
-      allow get, update: if isRideParticipant(rideId);
-      // This rule allows a user to query the 'rides' collection, but ONLY if
-      // the query includes a 'where("participantIds", "array-contains", request.auth.uid)' clause.
-      // This prevents users from listing all rides and only allows them to see their own.
+      allow get, update, delete: if isRideParticipant(rideId);
       allow list: if isSignedIn() && request.query.where.participantIds.includes('array-contains', request.auth.uid);
       allow create: if isSignedIn();
-      allow delete: if isRideParticipant(rideId);
           
-      // Chat subcollection rules
+      // Subcollection for chat messages within a ride.
       match /chats/{chatId} {
         allow read, write: if isRideParticipant(rideId);
       }
     }
 
-
-    // --------------------------------
-    // SOS Alert Rules
-    // --------------------------------
-
     /**
-     * @description Manages sensitive SOS alert documents.
-     * @path /sos_alerts/{sosAlertId}
-     * @allow (create) A signed-in user can create an SOS alert for themselves.
-     * @allow (get) A user can only read an SOS alert they created.
-     * @deny (list, update, delete) For security, these are forbidden.
+     * /sos_alerts/{sosAlertId}
+     * Stores sensitive emergency alerts.
+     * - CREATE: A user can only create an alert for themselves.
+     * - READ: A user can only read an alert they created.
+     * - LIST/UPDATE/DELETE: Disallowed for security and data integrity.
      */
     match /sos_alerts/{sosAlertId} {
       allow get: if isOwner(resource.data.userId);
-      allow list: if false;
       allow create: if isOwner(request.resource.data.userId);
-      allow update, delete: if false;
+
+      allow list, update, delete: if false;
     }
   }
 }
