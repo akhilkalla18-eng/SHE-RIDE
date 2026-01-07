@@ -1,0 +1,66 @@
+"use client"
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+
+export default function CreateServicePage() {
+    const { toast } = useToast();
+    const router = useRouter();
+
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        toast({
+            title: "Service Request Created",
+            description: "Your ride request has been posted. We'll notify you about matching offers.",
+        });
+        router.push("/dashboard");
+    };
+    
+    return (
+        <div className="max-w-2xl mx-auto">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Request a Ride</CardTitle>
+                    <CardDescription>Find a woman traveling on the same route as you.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form className="grid gap-6" onSubmit={handleSubmit}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="pickup-location">Pickup Location</Label>
+                                <Input id="pickup-location" placeholder="e.g., Andheri West" required />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="destination">Destination</Label>
+                                <Input id="destination" placeholder="e.g., Bandra Kurla Complex" required />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="date">Date</Label>
+                                <Input id="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]}/>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="time">Time</Label>
+                                <Input id="time" type="time" required />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="max-amount">Max Amount Willing to Pay (Optional)</Label>
+                            <Input id="max-amount" type="number" placeholder="e.g., 75" />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="route">Preferred Route (Optional)</Label>
+                            <Input id="route" placeholder="e.g., Not via Sea Link" />
+                        </div>
+                        <Button type="submit" className="w-full md:w-auto md:ml-auto">Post Service Request</Button>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
