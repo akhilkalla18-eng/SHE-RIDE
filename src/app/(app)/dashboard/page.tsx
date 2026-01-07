@@ -37,19 +37,23 @@ import { collection, query, where, getDocs, doc, getDoc, orderBy, limit } from "
 import { type Ride, type PickupRequest, type ServiceRequest, UserProfile } from "@/lib/schemas"
 import { placeholderImages } from "@/lib/placeholder-images"
 
-const chartData = [
-    { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "Feb", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "Mar", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "Apr", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "May", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
-]
-
 type Suggestion = (PickupRequest | ServiceRequest) & { user: UserProfile; type: 'pickup' | 'service' };
 
 export default function Dashboard() {
   const { user, firestore, isUserLoading } = useFirebase();
+  const [chartData, setChartData] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    // Generate chart data on the client side to avoid hydration errors
+    setChartData([
+        { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "Feb", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "Mar", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "Apr", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "May", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
+    ]);
+  }, []);
 
   // Fetch user's upcoming confirmed rides
   const ridesQuery = useMemoFirebase(() => {
