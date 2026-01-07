@@ -33,9 +33,10 @@ import {
 } from "recharts"
 import React from "react"
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase"
-import { collection, query, where } from "firebase/firestore"
+import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
 import { type RideRequest } from "@/lib/types"
 import { placeholderImages } from "@/lib/placeholder-images"
+import { UserProfile } from "@/lib/schemas"
 
 const chartData = [
     { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
@@ -46,31 +47,77 @@ const chartData = [
     { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
 ]
 
+type RideRequestWithUser = RideRequest & { user: UserProfile };
+
+async function fetchUserForRequest(firestore: any, request: RideRequest): Promise<RideRequestWithUser> {
+    const userId = (request as any).riderId || (request as any).passengerId;
+    if (!userId) {
+        console.warn("Request without user id", request);
+        return { ...request, user: {} as UserProfile, userId: '' };
+    }
+    const userDocRef = doc(firestore, "users", userId);
+    const userDoc = await getDoc(userDocRef);
+    const user = userDoc.exists() ? userDoc.data() as UserProfile : {} as UserProfile;
+    return { ...request, user, userId };
+}
+
 export default function Dashboard() {
   const { user, firestore, isUserLoading } = useFirebase();
+  const [rideRequests, setRideRequests] = React.useState<(RideRequest & {type: 'pickup' | 'service'})[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
-  const pickupRequestsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'pickup_requests');
-  }, [firestore]);
+  React.useEffect(() => {
+    if (!firestore || isUserLoading) return;
 
-  const serviceRequestsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'service_requests');
-  }, [firestore]);
+    const fetchRequests = async () => {
+        setLoading(true);
+        if (!user) {
+            setRideRequests([]);
+            setLoading(false);
+            return;
+        }
 
-  const { data: pickupRequests, isLoading: pickupLoading } = useCollection<RideRequest>(pickupRequestsQuery);
-  const { data: serviceRequests, isLoading: serviceLoading } = useCollection<RideRequest>(serviceRequestsQuery);
+        const pickupRequestsRef = collection(firestore, `users/${user.uid}/pickup_requests`);
+        const serviceRequestsRef = collection(firestore, `users/${user.uid}/service_requests`);
+
+        const [pickupSnapshot, serviceSnapshot] = await Promise.all([
+            getDocs(pickupRequestsRef),
+            getDocs(serviceRequestsRef)
+        ]);
+        
+        const allRequests: (RideRequest & {type: 'pickup' | 'service'})[] = [];
+        pickupSnapshot.forEach(doc => {
+            allRequests.push({...(doc.data() as RideRequest), id: doc.id, type: 'pickup'});
+        });
+        serviceSnapshot.forEach(doc => {
+            allRequests.push({...(doc.data() as RideRequest), id: doc.id, type: 'service'});
+        });
+
+        // This part can be expanded to fetch all open suggestions from other users
+        const usersSnapshot = await getDocs(collection(firestore, 'users'));
+        const otherUserIds = usersSnapshot.docs.map(d => d.id).filter(id => id !== user.uid);
+
+        for (const otherUserId of otherUserIds) {
+            const otherPickups = await getDocs(collection(firestore, `users/${otherUserId}/pickup_requests`));
+            otherPickups.forEach(doc => {
+                if(doc.data().status === 'open') allRequests.push({...(doc.data() as RideRequest), id: doc.id, type: 'pickup'});
+            });
+            const otherServices = await getDocs(collection(firestore, `users/${otherUserId}/service_requests`));
+            otherServices.forEach(doc => {
+                if(doc.data().status === 'open') allRequests.push({...(doc.data() as RideRequest), id: doc.id, type: 'service'});
+            });
+        }
+        
+        const requestsWithUsers = await Promise.all(allRequests.map(r => fetchUserForRequest(firestore, r)));
+        setRideRequests(requestsWithUsers as any);
+        setLoading(false);
+    };
+
+    fetchRequests();
+
+  }, [firestore, user, isUserLoading]);
   
-  const rideRequests = React.useMemo(() => {
-      const allRequests = [
-          ...(pickupRequests || []).map(r => ({...r, type: 'pickup' as const})),
-          ...(serviceRequests || []).map(r => ({...r, type: 'service' as const}))
-      ];
-      return allRequests;
-  }, [pickupRequests, serviceRequests]);
-
-  if (isUserLoading || pickupLoading || serviceLoading) {
+  if (isUserLoading || loading) {
     return <div>Loading...</div>
   }
 
@@ -78,8 +125,8 @@ export default function Dashboard() {
       return <div>Please log in to see your dashboard.</div>
   }
 
-  const upcomingRides = rideRequests.filter(r => r.userId === user.uid && r.status === 'matched');
-  const suggestions = rideRequests.filter(r => r.userId !== user.uid && r.status === 'open');
+  const upcomingRides = rideRequests.filter(r => (r.userId === user.uid || (r as any).passengerId === user.uid) && r.status === 'matched');
+  const suggestions = rideRequests.filter(r => (r.userId !== user.uid && (r as any).passengerId !== user.uid) && r.status === 'open');
 
   return (
     <div className="flex flex-col gap-4 md:gap-8">
