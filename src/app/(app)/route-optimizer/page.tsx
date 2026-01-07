@@ -1,6 +1,7 @@
 "use client"
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { getRouteSuggestion, type FormState } from "@/app/actions";
 
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ export default function RouteOptimizerPage() {
     const initialState: FormState = {
         message: "",
     };
-    const [state, formAction] = useFormState(getRouteSuggestion, initialState);
+    const [state, formAction] = useActionState(getRouteSuggestion, initialState);
 
     return (
         <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
