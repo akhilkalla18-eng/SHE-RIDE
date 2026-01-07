@@ -19,6 +19,7 @@ import {
   User,
   Shield,
   Route,
+  Users,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { currentUser } from "@/lib/data";
