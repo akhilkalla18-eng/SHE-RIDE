@@ -26,11 +26,25 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { Bell, LifeBuoy, LogOut, TriangleAlert } from "lucide-react"
-import { currentUser, notifications } from "@/lib/data"
+import { notifications } from "@/lib/data"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth, useDoc, useFirebase, useMemoFirebase } from "@/firebase"
+import { signOut } from "firebase/auth"
+import { type UserProfile } from "@/lib/schemas"
+import { doc } from "firebase/firestore"
+import { placeholderImages } from "@/lib/placeholder-images"
 
 export function AppHeader() {
     const { toast } = useToast()
+    const auth = useAuth();
+    const { user, firestore } = useFirebase();
+
+    const userProfileRef = useMemoFirebase(() => {
+      if (!user || !firestore) return null;
+      return doc(firestore, "users", user.uid);
+    }, [user, firestore]);
+    
+    const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
 
     const handleSosClick = () => {
         toast({
@@ -38,6 +52,11 @@ export function AppHeader() {
             description: "Your emergency contacts and our support team have been notified.",
             variant: "destructive",
         })
+    }
+    const handleLogout = () => {
+        if (auth) {
+            signOut(auth);
+        }
     }
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30 bg-background/80 backdrop-blur-sm">
@@ -97,8 +116,8 @@ export function AppHeader() {
         <DropdownMenuTrigger asChild>
           <Button variant="secondary" size="icon" className="rounded-full">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} />
-              <AvatarFallback>{currentUser.name.charAt(0)}</AvatarFallback>
+              <AvatarImage src={placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={userProfile?.name} />
+              <AvatarFallback>{userProfile?.name?.charAt(0)}</AvatarFallback>
             </Avatar>
             <span className="sr-only">Toggle user menu</span>
           </Button>
@@ -117,7 +136,7 @@ export function AppHeader() {
             <span>Support</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem onClick={handleLogout} asChild>
             <Link href="/">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Logout</span>

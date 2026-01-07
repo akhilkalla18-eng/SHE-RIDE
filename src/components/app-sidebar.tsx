@@ -22,7 +22,10 @@ import {
   Users,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { currentUser } from "@/lib/data";
+import { useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
+import { doc } from "firebase/firestore";
+import { type UserProfile } from "@/lib/schemas";
+import { placeholderImages } from "@/lib/placeholder-images";
 
 const menuItems = [
   {
@@ -64,6 +67,15 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, "users", user.uid);
+  }, [user, firestore]);
+
+  const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
 
   return (
     <Sidebar>
@@ -90,16 +102,18 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center gap-3 p-2">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} />
-            <AvatarFallback>{currentUser.name.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <div className="overflow-hidden">
-            <p className="font-semibold truncate">{currentUser.name}</p>
-            <p className="text-xs text-sidebar-foreground/70 truncate">{currentUser.city}</p>
-          </div>
-        </div>
+        {userProfile && (
+            <div className="flex items-center gap-3 p-2">
+            <Avatar className="h-10 w-10">
+                <AvatarImage src={placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={userProfile.name} />
+                <AvatarFallback>{userProfile.name?.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="overflow-hidden">
+                <p className="font-semibold truncate">{userProfile.name}</p>
+                <p className="text-xs text-sidebar-foreground/70 truncate">{userProfile.city}</p>
+            </div>
+            </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

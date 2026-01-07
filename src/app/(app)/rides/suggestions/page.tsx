@@ -1,69 +1,135 @@
+"use client";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { rideRequests } from "@/lib/data";
+import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
+import { RideRequest } from "@/lib/types";
+import { collection, doc, getDoc } from "firebase/firestore";
 import { ArrowRight, Bike, User } from "lucide-react";
 import Link from "next/link";
+import React, { useEffect, useState } from "react";
+import { UserProfile } from "@/lib/schemas";
+import { placeholderImages } from "@/lib/placeholder-images";
+
+type RideRequestWithUser = RideRequest & { user: UserProfile };
+
+async function fetchUserForRequest(firestore: any, request: RideRequest): Promise<RideRequestWithUser> {
+    const userId = request.type === 'pickup' ? (request as any).riderId : (request as any).passengerId;
+    if (!userId) {
+        console.warn("Request without user id", request);
+        return { ...request, user: {} as UserProfile };
+    }
+    const userDocRef = doc(firestore, "users", userId);
+    const userDoc = await getDoc(userDocRef);
+    const user = userDoc.exists() ? userDoc.data() as UserProfile : {} as UserProfile;
+    return { ...request, user, userId };
+}
+
 
 export default function SuggestionsPage() {
-    const suggestions = rideRequests.filter(r => r.status === 'open');
-  return (
-    <div className="container mx-auto">
-        <div className="mb-8">
-            <h1 className="text-3xl font-bold">Ride Suggestions</h1>
-            <p className="text-muted-foreground">Here are some ride offers and requests that match your potential routes.</p>
-        </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {suggestions.map(ride => (
-                <Card key={ride.id} className="flex flex-col">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <Avatar>
-                                    <AvatarImage src={ride.user.avatarUrl} />
-                                    <AvatarFallback>{ride.user.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <CardTitle className="text-lg">{ride.user.name}</CardTitle>
-                                    <CardDescription>{ride.user.city}</CardDescription>
+    const { firestore, user: currentUser } = useFirebase();
+    const [suggestions, setSuggestions] = useState<RideRequestWithUser[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const pickupRequestsQuery = useMemoFirebase(() => {
+        return firestore ? collection(firestore, 'pickup_requests') : null;
+    }, [firestore]);
+
+    const serviceRequestsQuery = useMemoFirebase(() => {
+        return firestore ? collection(firestore, 'service_requests') : null;
+    }, [firestore]);
+
+    const { data: pickupRequests } = useCollection<RideRequest>(pickupRequestsQuery);
+    const { data: serviceRequests } = useCollection<RideRequest>(serviceRequestsQuery);
+    
+    useEffect(() => {
+        if (!firestore || (!pickupRequests && !serviceRequests)) return;
+
+        const fetchAll = async () => {
+            setLoading(true);
+            const allRequests = [
+                ...(pickupRequests || []).map(r => ({ ...r, type: 'pickup' as const })),
+                ...(serviceRequests || []).map(r => ({ ...r, type: 'service' as const }))
+            ];
+            const openSuggestions = allRequests.filter(r => {
+                const userId = r.type === 'pickup' ? (r as any).riderId : (r as any).passengerId;
+                return r.status === 'open' && userId !== currentUser?.uid
+            });
+
+            const suggestionsWithUsers = await Promise.all(
+                openSuggestions.map(req => fetchUserForRequest(firestore, req))
+            );
+
+            setSuggestions(suggestionsWithUsers);
+            setLoading(false);
+        }
+        fetchAll();
+
+    }, [pickupRequests, serviceRequests, firestore, currentUser]);
+
+
+    if (loading) {
+        return <div>Loading suggestions...</div>
+    }
+
+    return (
+        <div className="container mx-auto">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold">Ride Suggestions</h1>
+                <p className="text-muted-foreground">Here are some ride offers and requests that match your potential routes.</p>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {suggestions.map(ride => (
+                    <Card key={ride.id} className="flex flex-col">
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Avatar>
+                                        <AvatarImage src={placeholderImages.find(p => p.id === 'avatar2')?.imageUrl} />
+                                        <AvatarFallback>{ride.user.name?.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <CardTitle className="text-lg">{ride.user.name}</CardTitle>
+                                        <CardDescription>{ride.user.city}</CardDescription>
+                                    </div>
                                 </div>
+                                <Badge variant={ride.type === 'pickup' ? 'secondary' : 'outline'}>
+                                    {ride.type === 'pickup' ? 'Offering Ride' : 'Needs Ride'}
+                                </Badge>
                             </div>
-                            <Badge variant={ride.type === 'pickup' ? 'secondary' : 'outline'}>
-                                {ride.type === 'pickup' ? 'Offering Ride' : 'Needs Ride'}
-                            </Badge>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="flex-1">
-                        <div className="flex items-center gap-4 text-sm font-semibold">
-                            <span>{ride.startLocation}</span>
-                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                            <span>{ride.destination}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-2">
-                           {ride.dateTime.toLocaleString('en-US', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour: 'numeric',
-                                minute: 'numeric'
-                            })}
-                        </p>
-                        <div className="flex items-center gap-2 mt-4 text-sm">
-                            {ride.type === 'pickup' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
-                            <span>{ride.vehicleType ? `Vehicle: ${ride.vehicleType}` : 'Passenger request'}</span>
-                        </div>
-                    </CardContent>
-                    <CardFooter className="flex gap-2">
-                        <Button className="w-full">Send Request</Button>
-                        <Button variant="outline" asChild>
-                           <Link href="/route-optimizer">Optimize</Link>
-                        </Button>
-                    </CardFooter>
-                </Card>
-            ))}
+                        </CardHeader>
+                        <CardContent className="flex-1">
+                            <div className="flex items-center gap-4 text-sm font-semibold">
+                                <span>{ride.startLocation}</span>
+                                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                <span>{ride.destination}</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-2">
+                               {new Date(ride.dateTime).toLocaleString('en-US', {
+                                    weekday: 'long',
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: 'numeric'
+                                })}
+                            </p>
+                            <div className="flex items-center gap-2 mt-4 text-sm">
+                                {ride.type === 'pickup' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
+                                <span>{ride.vehicleType ? `Vehicle: ${ride.vehicleType}` : 'Passenger request'}</span>
+                            </div>
+                        </CardContent>
+                        <CardFooter className="flex gap-2">
+                            <Button className="w-full">Send Request</Button>
+                            <Button variant="outline" asChild>
+                               <Link href="/route-optimizer">Optimize</Link>
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
         </div>
-    </div>
-  );
+    );
 }

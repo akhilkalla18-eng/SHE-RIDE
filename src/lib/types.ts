@@ -1,20 +1,22 @@
-export type User = {
-  id: string;
-  name: string;
-  avatarUrl: string;
-  city: string;
-  isVerified: boolean;
+import { type UserProfile } from "./schemas";
+
+export type User = UserProfile & {
+    id: string;
+    avatarUrl: string;
+    isVerified: boolean;
 };
 
 export type RideRequest = {
   id: string;
   type: 'pickup' | 'service';
-  user: User;
+  user: User; // This might be simplified to just userId
+  userId: string;
   startLocation: string;
   destination: string;
-  dateTime: Date;
+  dateTime: string; // Storing as ISO string or timestamp number
   vehicleType?: 'Bike' | 'Scooty';
-  status: 'open' | 'matched';
+  status: 'open' | 'matched' | 'confirmed';
+  expectedCost?: number;
 };
 
 export type Notification = {

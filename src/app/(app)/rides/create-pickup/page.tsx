@@ -5,15 +5,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { addDocumentNonBlocking, useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
+import { collection } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 export default function CreatePickupPage() {
     const { toast } = useToast();
     const router = useRouter();
+    const { user, firestore } = useFirebase();
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (!user || !firestore) return;
+
+        const formData = new FormData(e.currentTarget);
+        const date = formData.get("date") as string;
+        const time = formData.get("time") as string;
+        const dateTime = new Date(`${date}T${time}`);
+
+        const pickupRequest = {
+            riderId: user.uid,
+            startingLocation: formData.get("start-location") as string,
+            destination: formData.get("destination") as string,
+            dateTime: dateTime.toISOString(),
+            vehicleType: formData.get("vehicle-type") as string,
+            seatsAvailable: 1,
+            expectedCost: Number(formData.get("cost")) || 0,
+            routePreference: formData.get("route") as string,
+            status: 'open',
+        };
+
+        const pickupRequestsRef = collection(firestore, `users/${user.uid}/pickup_requests`);
+        addDocumentNonBlocking(pickupRequestsRef, pickupRequest);
+
         toast({
             title: "Pickup Request Created",
             description: "Your ride offer has been posted. We'll notify you about matching requests.",
@@ -33,27 +58,27 @@ export default function CreatePickupPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="start-location">Starting Location</Label>
-                                <Input id="start-location" placeholder="e.g., Juhu, Mumbai" required />
+                                <Input name="start-location" id="start-location" placeholder="e.g., Juhu, Mumbai" required />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="destination">Destination</Label>
-                                <Input id="destination" placeholder="e.g., Powai, Mumbai" required />
+                                <Input name="destination" id="destination" placeholder="e.g., Powai, Mumbai" required />
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="date">Date</Label>
-                                <Input id="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
+                                <Input name="date" id="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="time">Time</Label>
-                                <Input id="time" type="time" required />
+                                <Input name="time" id="time" type="time" required />
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div className="grid gap-2">
                                 <Label htmlFor="vehicle-type">Vehicle Type</Label>
-                                <Select required>
+                                <Select name="vehicle-type" required>
                                     <SelectTrigger id="vehicle-type">
                                         <SelectValue placeholder="Select vehicle" />
                                     </SelectTrigger>
@@ -70,11 +95,11 @@ export default function CreatePickupPage() {
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="cost">Expected Contribution (Optional)</Label>
-                            <Input id="cost" type="number" placeholder="e.g., 50 for fuel" />
+                            <Input name="cost" id="cost" type="number" placeholder="e.g., 50 for fuel" />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="route">Route Preference (Optional)</Label>
-                            <Input id="route" placeholder="e.g., Via Western Express Highway" />
+                            <Input name="route" id="route" placeholder="e.g., Via Western Express Highway" />
                         </div>
                         <Button type="submit" className="w-full md:w-auto md:ml-auto">Create Pickup Request</Button>
                     </form>

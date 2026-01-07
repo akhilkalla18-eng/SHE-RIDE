@@ -8,7 +8,6 @@ import {
   Users,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -25,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { currentUser, rideRequests } from "@/lib/data"
 import {
   Bar,
   BarChart,
@@ -34,6 +32,10 @@ import {
   YAxis,
 } from "recharts"
 import React from "react"
+import { useCollection, useFirebase, useMemoFirebase } from "@/firebase"
+import { collection, query, where } from "firebase/firestore"
+import { type RideRequest } from "@/lib/types"
+import { placeholderImages } from "@/lib/placeholder-images"
 
 const chartData = [
     { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
@@ -45,25 +47,44 @@ const chartData = [
 ]
 
 export default function Dashboard() {
-  const [loading, setLoading] = React.useState(true);
+  const { user, firestore, isUserLoading } = useFirebase();
 
-  React.useEffect(() => {
-    if (currentUser && rideRequests) {
-      setLoading(false);
-    }
-  }, []);
+  const pickupRequestsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'pickup_requests');
+  }, [firestore]);
 
-  if (loading) {
+  const serviceRequestsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'service_requests');
+  }, [firestore]);
+
+  const { data: pickupRequests, isLoading: pickupLoading } = useCollection<RideRequest>(pickupRequestsQuery);
+  const { data: serviceRequests, isLoading: serviceLoading } = useCollection<RideRequest>(serviceRequestsQuery);
+  
+  const rideRequests = React.useMemo(() => {
+      const allRequests = [
+          ...(pickupRequests || []).map(r => ({...r, type: 'pickup' as const})),
+          ...(serviceRequests || []).map(r => ({...r, type: 'service' as const}))
+      ];
+      return allRequests;
+  }, [pickupRequests, serviceRequests]);
+
+  if (isUserLoading || pickupLoading || serviceLoading) {
     return <div>Loading...</div>
   }
 
-  const upcomingRides = rideRequests.filter(r => r.user.id === currentUser.id && r.status === 'matched');
-  const suggestions = rideRequests.filter(r => r.user.id !== currentUser.id);
+  if (!user) {
+      return <div>Please log in to see your dashboard.</div>
+  }
+
+  const upcomingRides = rideRequests.filter(r => r.userId === user.uid && r.status === 'matched');
+  const suggestions = rideRequests.filter(r => r.userId !== user.uid && r.status === 'open');
 
   return (
     <div className="flex flex-col gap-4 md:gap-8">
         <div className="space-y-1.5">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Welcome back, {currentUser.name.split(' ')[0]}!</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Welcome back!</h1>
             <p className="text-muted-foreground">Here's what's happening on SheRide today.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
@@ -155,7 +176,7 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2">
                             <Avatar className="hidden h-9 w-9 sm:flex">
                               <AvatarImage src={ride.user.avatarUrl} alt="Avatar" />
-                              <AvatarFallback>{ride.user.name.charAt(0)}</AvatarFallback>
+                              <AvatarFallback>{ride.user.name?.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div className="font-medium">{ride.user.name}</div>
                           </div>
@@ -164,7 +185,7 @@ export default function Dashboard() {
                             <div className="font-medium truncate max-w-40">{ride.startLocation} to {ride.destination}</div>
                         </TableCell>
                          <TableCell className="hidden sm:table-cell">
-                            {ride.dateTime.toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: 'numeric' })}
+                            {new Date(ride.dateTime).toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: 'numeric' })}
                         </TableCell>
                         <TableCell className="text-right">
                             <Button size="sm" variant="outline" asChild>
@@ -186,14 +207,14 @@ export default function Dashboard() {
                  <div className=" flex items-center gap-4" key={ride.id}>
                     <Avatar className="hidden h-9 w-9 sm:flex">
                       <AvatarImage src={ride.user.avatarUrl} alt="Avatar" />
-                      <AvatarFallback>{ride.user.name.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{ride.user.name?.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="grid gap-1">
                       <p className="text-sm font-medium leading-none">
                         {ride.startLocation} &rarr; {ride.destination}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        with {ride.user.name} on {ride.dateTime.toLocaleDateString()}
+                        with {ride.user.name} on {new Date(ride.dateTime).toLocaleDateString()}
                       </p>
                     </div>
                     <Button variant="ghost" size="icon" className="ml-auto">
