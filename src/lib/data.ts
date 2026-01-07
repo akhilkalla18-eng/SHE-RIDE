@@ -42,7 +42,7 @@ export const rideRequests: RideRequest[] = [
 ];
 
 export const notifications: Notification[] = [
-    { id: 'n1', text: 'Anjali accepted your ride request for tomorrow.', time: '10m ago', read: false },
-    { id: 'n2', text: 'New ride suggestion: Sunita is going from Dadar to Lower Parel.', time: '1h ago', read: false },
+    { id: 'n1', text: `Anjali accepted your ride request for tomorrow.`, time: '10m ago', read: false },
+    { id: 'n2', text: `New ride suggestion: Sunita is going from Dadar to Lower Parel.`, time: '1h ago', read: false },
     { id: 'n3', text: 'Welcome to SheRide! Complete your profile to get started.', time: '1d ago', read: true },
 ];

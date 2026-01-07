@@ -33,6 +33,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import React from "react"
 
 const chartData = [
     { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
@@ -44,6 +45,18 @@ const chartData = [
 ]
 
 export default function Dashboard() {
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (currentUser && rideRequests) {
+      setLoading(false);
+    }
+  }, []);
+
+  if (loading) {
+    return <div>Loading...</div>
+  }
+
   const upcomingRides = rideRequests.filter(r => r.user.id === currentUser.id && r.status === 'matched');
   const suggestions = rideRequests.filter(r => r.user.id !== currentUser.id);
 
