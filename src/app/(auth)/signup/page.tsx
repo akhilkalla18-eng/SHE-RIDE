@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link"
@@ -31,6 +32,11 @@ export default function SignupPage() {
     const password = formData.get("password") as string;
 
     if (!auth || !firestore) {
+      toast({
+        title: "Signup Failed",
+        description: "Firebase is not initialized. Please try again later.",
+        variant: "destructive",
+      });
       setIsLoading(false);
       return;
     }
@@ -60,10 +66,19 @@ export default function SignupPage() {
       router.push("/login");
 
     } catch (error: any) {
-      console.error(error);
+      console.error("Signup Error:", error);
+      let description = "An unexpected error occurred. Please try again.";
+      if (error.code === 'auth/email-already-in-use') {
+        description = "This email is already registered. Please log in instead.";
+      } else if (error.code === 'auth/weak-password') {
+        description = "The password is too weak. Please choose a stronger password.";
+      } else if (error.message) {
+        description = error.message;
+      }
+      
       toast({
         title: "Signup Failed",
-        description: error.message,
+        description: description,
         variant: "destructive",
       });
     } finally {
@@ -129,5 +144,3 @@ export default function SignupPage() {
     </>
   )
 }
-
-    
