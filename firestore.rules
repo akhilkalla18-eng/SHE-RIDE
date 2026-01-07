@@ -80,11 +80,11 @@ service cloud.firestore {
     /**
      * /pickupRequests/{pickupRequestId}
      * Stores ride offers from riders.
-     * - READ: Any authenticated user can read the list of offers to find a ride.
+     * - LIST/GET: Any authenticated user can read the list of offers to find a ride.
      * - WRITE: Only the owner (the rider) can create, update, or delete their own offer.
      */
     match /pickupRequests/{pickupRequestId} {
-      allow read: if isSignedIn();
+      allow list, get: if isSignedIn();
       
       allow create: if isOwner(request.resource.data.riderId);
       allow update, delete: if isOwner(resource.data.riderId) && areOwnershipFieldsImmutable(['riderId']);
@@ -93,11 +93,11 @@ service cloud.firestore {
     /**
      * /serviceRequests/{serviceRequestId}
      * Stores ride requests from passengers.
-     * - READ: Any authenticated user can read the list of requests to find a passenger.
+     * - LIST/GET: Any authenticated user can read the list of requests to find a passenger.
      * - WRITE: Only the owner (the passenger) can create, update, or delete their own request.
      */
     match /serviceRequests/{serviceRequestId} {
-      allow read: if isSignedIn();
+      allow list, get: if isSignedIn();
       
       allow create: if isOwner(request.resource.data.passengerId);
       allow update, delete: if isOwner(resource.data.passengerId) && areOwnershipFieldsImmutable(['passengerId']);
@@ -106,7 +106,7 @@ service cloud.firestore {
     /**
      * /rides/{rideId}
      * Stores confirmed rides between two participants.
-     * - READ/WRITE: Access is granted only to users whose UID is in the `participantIds` array.
+     * - GET/WRITE: Access is granted only to users whose UID is in the `participantIds` array.
      * - LIST: A user can ONLY query for rides where they are a participant. This is enforced
      *   by requiring a `where` clause on the `participantIds` field in the query.
      */
