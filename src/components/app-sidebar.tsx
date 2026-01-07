@@ -22,8 +22,6 @@ import {
   Users,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import { doc } from "firebase/firestore";
 import { type UserProfile } from "@/lib/schemas";
 import { placeholderImages } from "@/lib/placeholder-images";
 
@@ -65,17 +63,17 @@ const menuItems = [
   },
 ];
 
+const userProfile: UserProfile = {
+  id: "1",
+  name: "Priya Sharma",
+  email: "priya@example.com",
+  city: "Mumbai",
+  phoneNumber: "+91 98765 43210",
+  profileVerified: true,
+};
+
 export function AppSidebar() {
   const pathname = usePathname();
-  const { user } = useUser();
-  const firestore = useFirestore();
-
-  const userProfileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, "users", user.uid);
-  }, [user, firestore]);
-
-  const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
 
   return (
     <Sidebar>

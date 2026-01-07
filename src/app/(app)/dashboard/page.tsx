@@ -32,98 +32,30 @@ import {
   YAxis,
 } from "recharts"
 import React from "react"
-import { useCollection, useFirebase, useMemoFirebase } from "@/firebase"
-import { collection, query, where, getDocs, doc, getDoc, orderBy, limit } from "firebase/firestore"
 import { type Ride, type PickupRequest, type ServiceRequest, UserProfile } from "@/lib/schemas"
 import { placeholderImages } from "@/lib/placeholder-images"
+import { notifications } from "@/lib/data"
 
-type Suggestion = (PickupRequest | ServiceRequest) & { user: UserProfile; type: 'pickup' | 'service' };
+const chartData = [
+    { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
+    { name: "Feb", total: Math.floor(Math.random() * 50) + 10 },
+    { name: "Mar", total: Math.floor(Math.random() * 50) + 10 },
+    { name: "Apr", total: Math.floor(Math.random() * 50) + 10 },
+    { name: "May", total: Math.floor(Math.random() * 50) + 10 },
+    { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
+];
+
+const upcomingRides: any[] = [
+    { id: '1', passengerId: 'Anjali', dateTime: '2024-08-15T10:00:00.000Z', riderId: 'Priya' },
+];
+
+const suggestionsWithUsers = [
+    { id: 's1', type: 'pickup', startingLocation: 'Juhu, Mumbai', destination: 'Powai, Mumbai', dateTime: '2024-08-16T18:00:00.000Z', user: { name: 'Sunita' } },
+    { id: 's2', type: 'service', pickupLocation: 'Andheri West', destination: 'Bandra Kurla Complex', dateTime: '2024-08-17T09:00:00.000Z', user: { name: 'Rani' } },
+    { id: 's3', type: 'pickup', startingLocation: 'Dadar', destination: 'Lower Parel', dateTime: '2024-08-18T14:00:00.000Z', user: { name: 'Geeta' } },
+];
 
 export default function Dashboard() {
-  const { user, firestore, isUserLoading } = useFirebase();
-  const [chartData, setChartData] = React.useState<any[]>([]);
-
-  React.useEffect(() => {
-    // Generate chart data on the client side to avoid hydration errors
-    setChartData([
-        { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
-        { name: "Feb", total: Math.floor(Math.random() * 50) + 10 },
-        { name: "Mar", total: Math.floor(Math.random() * 50) + 10 },
-        { name: "Apr", total: Math.floor(Math.random() * 50) + 10 },
-        { name: "May", total: Math.floor(Math.random() * 50) + 10 },
-        { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
-    ]);
-  }, []);
-
-  // Fetch user's upcoming confirmed rides
-  const ridesQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return query(
-        collection(firestore, "rides"),
-        where("status", "==", "confirmed"),
-        where("participantIds", "array-contains", user.uid),
-        orderBy("dateTime", "desc")
-    );
-  }, [user, firestore]);
-  const { data: upcomingRides, isLoading: ridesLoading } = useCollection<Ride>(ridesQuery);
-
-  // Fetch new ride suggestions from public collections
-   const pickupSuggestionsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return query(
-        collection(firestore, "pickupRequests"), 
-        where("status", "==", "open"),
-        where("riderId", "!=", user.uid),
-        limit(5)
-    );
-  }, [user, firestore]);
-  const { data: pickupSuggestions, isLoading: pickupLoading } = useCollection<PickupRequest>(pickupSuggestionsQuery);
-
-  const serviceSuggestionsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return query(
-        collection(firestore, "serviceRequests"),
-        where("status", "==", "open"),
-        where("passengerId", "!=", user.uid),
-        limit(5)
-    );
-  }, [user, firestore]);
-  const { data: serviceSuggestions, isLoading: serviceLoading } = useCollection<ServiceRequest>(serviceSuggestionsQuery);
-
-  const [suggestionsWithUsers, setSuggestionsWithUsers] = React.useState<Suggestion[]>([]);
-
-  // Effect to combine suggestions and fetch user data
-  React.useEffect(() => {
-    if (pickupLoading || serviceLoading || !firestore) return;
-
-    const fetchUsers = async () => {
-        const allSuggestions = [
-            ...(pickupSuggestions || []).map(r => ({ ...r, type: 'pickup' as const })),
-            ...(serviceSuggestions || []).map(r => ({ ...r, type: 'service' as const }))
-        ];
-
-        const suggestionsWithUsers = await Promise.all(
-            allSuggestions.map(async (req) => {
-                const userId = req.type === 'pickup' ? req.riderId : req.passengerId;
-                const userDocRef = doc(firestore, "users", userId);
-                const userDoc = await getDoc(userDocRef);
-                const user = userDoc.exists() ? userDoc.data() as UserProfile : {} as UserProfile;
-                return { ...req, user };
-            })
-        );
-        setSuggestionsWithUsers(suggestionsWithUsers as Suggestion[]);
-    };
-
-    fetchUsers();
-  }, [pickupSuggestions, serviceSuggestions, firestore, pickupLoading, serviceLoading]);
-  
-  if (isUserLoading || ridesLoading || pickupLoading || serviceLoading) {
-    return <div className="flex items-center justify-center h-full"><p>Loading dashboard...</p></div>
-  }
-
-  if (!user) {
-      return <div>Please log in to see your dashboard.</div>
-  }
   
   return (
     <div className="flex flex-col gap-4 md:gap-8">
@@ -214,7 +146,7 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {suggestionsWithUsers.slice(0, 3).map(ride => (
+                  {suggestionsWithUsers.slice(0, 3).map((ride: any) => (
                      <TableRow key={ride.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -226,7 +158,7 @@ export default function Dashboard() {
                           </div>
                         </TableCell>
                         <TableCell>
-                            <div className="font-medium truncate max-w-40">{ride.type === 'pickup' ? ride.startingLocation : (ride as ServiceRequest).pickupLocation} to {ride.destination}</div>
+                            <div className="font-medium truncate max-w-40">{ride.type === 'pickup' ? ride.startingLocation : ride.pickupLocation} to {ride.destination}</div>
                         </TableCell>
                          <TableCell className="hidden sm:table-cell">
                             {new Date(ride.dateTime).toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: 'numeric' })}

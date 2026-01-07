@@ -4,38 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addDocumentNonBlocking, useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { collection } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 export default function CreateServicePage() {
     const { toast } = useToast();
     const router = useRouter();
-    const { user, firestore } = useFirebase();
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (!user || !firestore) return;
-
-        const formData = new FormData(e.currentTarget);
-        const date = formData.get("date") as string;
-        const time = formData.get("time") as string;
-        const dateTime = new Date(`${date}T${time}`);
-
-        const serviceRequest = {
-            passengerId: user.uid,
-            pickupLocation: formData.get("pickup-location") as string,
-            destination: formData.get("destination") as string,
-            dateTime: dateTime.toISOString(),
-            maxAmount: Number(formData.get("max-amount")) || 0,
-            preferredRoute: formData.get("route") as string,
-            status: 'open',
-        };
         
-        const serviceRequestsRef = collection(firestore, `serviceRequests`);
-        addDocumentNonBlocking(serviceRequestsRef, serviceRequest);
-
         toast({
             title: "Service Request Created",
             description: "Your ride request has been posted. We'll notify you about matching offers.",

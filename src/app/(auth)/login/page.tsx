@@ -3,39 +3,26 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth } from "@/firebase/provider";
 import { useToast } from "@/hooks/use-toast";
-import { initiateEmailSignIn } from "@/firebase";
 import Link from "next/link"
 import { useRouter } from "next/navigation";
 import React from "react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const auth = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       setIsLoading(true);
-      if (!auth) {
-        setIsLoading(false);
-        return
-      };
-
-      const formData = new FormData(e.currentTarget);
-      const email = formData.get("email") as string;
-      const password = formData.get("password") as string;
-
-      initiateEmailSignIn(auth, email, password);
-      // We don't await here. The onAuthStateChanged listener in the provider will handle the redirect.
+      
       toast({
-          title: "Login attempt in progress...",
-          description: "You'll be redirected shortly.",
+          title: "Login Successful!",
+          description: "You'll be redirected to your dashboard.",
       });
-      // A failsafe redirect in case the listener is slow
-      setTimeout(() => router.push("/dashboard"), 2000); 
+      // Simulate network request
+      setTimeout(() => router.push("/dashboard"), 1000); 
   };
 
   return (
@@ -49,6 +36,7 @@ export default function LoginPage() {
             type="email"
             placeholder="priya@example.com"
             required
+            defaultValue="priya@example.com"
           />
         </div>
         <div className="grid gap-2">
@@ -61,7 +49,7 @@ export default function LoginPage() {
               Forgot your password?
             </Link>
           </div>
-          <Input id="password" name="password" type="password" required />
+          <Input id="password" name="password" type="password" required defaultValue="password" />
         </div>
         <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Logging in..." : "Login"}
@@ -76,5 +64,3 @@ export default function LoginPage() {
     </>
   )
 }
-
-    

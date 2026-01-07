@@ -4,75 +4,22 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
-import { collection, doc, getDoc, query, where, limit } from "firebase/firestore";
 import { ArrowRight, Bike, User } from "lucide-react";
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { UserProfile, PickupRequest, ServiceRequest } from "@/lib/schemas";
 import { placeholderImages } from "@/lib/placeholder-images";
 
-type Suggestion = (PickupRequest | ServiceRequest) & { user: UserProfile; type: 'pickup' | 'service' };
+const suggestionsWithUsers = [
+    { id: 's1', type: 'pickup', startingLocation: 'Juhu, Mumbai', destination: 'Powai, Mumbai', dateTime: '2024-08-16T18:00:00.000Z', user: { name: 'Sunita', city: 'Mumbai' }, vehicleType: 'Scooty' },
+    { id: 's2', type: 'service', pickupLocation: 'Andheri West', destination: 'Bandra Kurla Complex', dateTime: '2024-08-17T09:00:00.000Z', user: { name: 'Rani', city: 'Mumbai' } },
+    { id: 's3', type: 'pickup', startingLocation: 'Dadar', destination: 'Lower Parel', dateTime: '2024-08-18T14:00:00.000Z', user: { name: 'Geeta', city: 'Mumbai' }, vehicleType: 'Bike' },
+    { id: 's4', type: 'service', pickupLocation: 'Thane', destination: 'Vashi', dateTime: '2024-08-19T11:00:00.000Z', user: { name: 'Pooja', city: 'Thane' } },
+];
+
 
 export default function SuggestionsPage() {
-    const { firestore, user: currentUser, isUserLoading } = useFirebase();
-
-    // Fetch ride suggestions from public collections
-    const pickupSuggestionsQuery = useMemoFirebase(() => {
-        if (!currentUser || !firestore) return null;
-        return query(
-            collection(firestore, "pickupRequests"),
-            where("status", "==", "open"),
-            where("riderId", "!=", currentUser.uid)
-        );
-    }, [currentUser, firestore]);
-    const { data: pickupSuggestions, isLoading: pickupLoading } = useCollection<PickupRequest>(pickupSuggestionsQuery);
-
-    const serviceSuggestionsQuery = useMemoFirebase(() => {
-        if (!currentUser || !firestore) return null;
-        return query(
-            collection(firestore, "serviceRequests"),
-            where("status", "==", "open"),
-            where("passengerId", "!=", currentUser.uid)
-        );
-    }, [currentUser, firestore]);
-    const { data: serviceSuggestions, isLoading: serviceLoading } = useCollection<ServiceRequest>(serviceSuggestionsQuery);
-
-    const [suggestionsWithUsers, setSuggestionsWithUsers] = useState<Suggestion[]>([]);
-
-    // Effect to combine suggestions and fetch user data
-    useEffect(() => {
-        if (pickupLoading || serviceLoading || !firestore) return;
-
-        const fetchUsers = async () => {
-            const allSuggestions = [
-                ...(pickupSuggestions || []).map(r => ({ ...r, type: 'pickup' as const })),
-                ...(serviceSuggestions || []).map(r => ({ ...r, type: 'service' as const }))
-            ];
-
-            const populatedSuggestions = await Promise.all(
-                allSuggestions.map(async (req) => {
-                    const userId = req.type === 'pickup' ? req.riderId : req.passengerId;
-                    const userDocRef = doc(firestore, "users", userId);
-                    const userDoc = await getDoc(userDocRef);
-                    const user = userDoc.exists() ? userDoc.data() as UserProfile : {} as UserProfile;
-                    return { ...req, user };
-                })
-            );
-            setSuggestionsWithUsers(populatedSuggestions as Suggestion[]);
-        };
-
-        fetchUsers();
-    }, [pickupSuggestions, serviceSuggestions, firestore, pickupLoading, serviceLoading]);
-
-    if (isUserLoading || pickupLoading || serviceLoading) {
-        return <div className="flex items-center justify-center h-full"><p>Loading suggestions...</p></div>
-    }
-
-    if (!currentUser) {
-        return <div>Please log in to see suggestions.</div>
-    }
-
+    
     return (
         <div className="container mx-auto">
             <div className="mb-8">
@@ -80,7 +27,7 @@ export default function SuggestionsPage() {
                 <p className="text-muted-foreground">Here are some ride offers and requests that match your potential routes.</p>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {suggestionsWithUsers.length > 0 ? suggestionsWithUsers.map(ride => (
+                {suggestionsWithUsers.length > 0 ? suggestionsWithUsers.map((ride: any) => (
                     <Card key={ride.id} className="flex flex-col">
                         <CardHeader>
                             <div className="flex items-center justify-between">
@@ -101,7 +48,7 @@ export default function SuggestionsPage() {
                         </CardHeader>
                         <CardContent className="flex-1">
                             <div className="flex items-center gap-4 text-sm font-semibold">
-                                <span>{ride.type === 'pickup' ? ride.startingLocation : (ride as ServiceRequest).pickupLocation}</span>
+                                <span>{ride.type === 'pickup' ? ride.startingLocation : ride.pickupLocation}</span>
                                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
                                 <span>{ride.destination}</span>
                             </div>
@@ -117,7 +64,7 @@ export default function SuggestionsPage() {
                             </p>
                             <div className="flex items-center gap-2 mt-4 text-sm">
                                 {ride.type === 'pickup' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
-                                <span>{ride.type === 'pickup' ? `Vehicle: ${(ride as PickupRequest).vehicleType}` : 'Passenger request'}</span>
+                                <span>{ride.type === 'pickup' ? `Vehicle: ${ride.vehicleType}` : 'Passenger request'}</span>
                             </div>
                         </CardContent>
                         <CardFooter className="flex gap-2">

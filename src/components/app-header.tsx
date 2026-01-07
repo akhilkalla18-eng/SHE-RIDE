@@ -28,23 +28,21 @@ import Link from "next/link"
 import { Bell, LifeBuoy, LogOut, TriangleAlert } from "lucide-react"
 import { notifications } from "@/lib/data"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth, useDoc, useFirebase, useMemoFirebase } from "@/firebase"
-import { signOut } from "firebase/auth"
 import { type UserProfile } from "@/lib/schemas"
-import { doc } from "firebase/firestore"
 import { placeholderImages } from "@/lib/placeholder-images"
+
+const userProfile: UserProfile = {
+  id: "1",
+  name: "Priya Sharma",
+  email: "priya@example.com",
+  city: "Mumbai",
+  phoneNumber: "+91 98765 43210",
+  profileVerified: true,
+};
+
 
 export function AppHeader() {
     const { toast } = useToast()
-    const auth = useAuth();
-    const { user, firestore } = useFirebase();
-
-    const userProfileRef = useMemoFirebase(() => {
-      if (!user || !firestore) return null;
-      return doc(firestore, "users", user.uid);
-    }, [user, firestore]);
-    
-    const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
 
     const handleSosClick = () => {
         toast({
@@ -54,9 +52,7 @@ export function AppHeader() {
         })
     }
     const handleLogout = () => {
-        if (auth) {
-            signOut(auth);
-        }
+        // No-op
     }
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30 bg-background/80 backdrop-blur-sm">
