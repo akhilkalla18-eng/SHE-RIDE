@@ -32,11 +32,10 @@ import {
   YAxis,
 } from "recharts"
 import React from "react"
-import { useFirebase } from "@/firebase"
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
-import { type RideRequest } from "@/lib/types"
+import { useCollection, useFirebase, useMemoFirebase } from "@/firebase"
+import { collection, query, where, getDocs, doc, getDoc, orderBy, limit } from "firebase/firestore"
+import { type Ride, type PickupRequest, type ServiceRequest, UserProfile } from "@/lib/schemas"
 import { placeholderImages } from "@/lib/placeholder-images"
-import { UserProfile } from "@/lib/schemas"
 
 const chartData = [
     { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
@@ -47,91 +46,85 @@ const chartData = [
     { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
 ]
 
-type RideRequestWithUser = RideRequest & { user: UserProfile };
-
-async function fetchUserForRequest(firestore: any, request: RideRequest): Promise<RideRequestWithUser> {
-    const userId = (request as any).riderId || (request as any).passengerId;
-    if (!userId) {
-        console.warn("Request without user id", request);
-        return { ...request, user: {} as UserProfile, userId: '' };
-    }
-    const userDocRef = doc(firestore, "users", userId);
-    const userDoc = await getDoc(userDocRef);
-    const user = userDoc.exists() ? userDoc.data() as UserProfile : {} as UserProfile;
-    return { ...request, user, userId };
-}
+type Suggestion = (PickupRequest | ServiceRequest) & { user: UserProfile; type: 'pickup' | 'service' };
 
 export default function Dashboard() {
   const { user, firestore, isUserLoading } = useFirebase();
-  const [rideRequests, setRideRequests] = React.useState<(RideRequest & {type: 'pickup' | 'service'})[]>([]);
-  const [loading, setLoading] = React.useState(true);
 
+  // Fetch user's upcoming confirmed rides
+  const ridesQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(
+        collection(firestore, "rides"),
+        where("status", "==", "confirmed"),
+        where("participantIds", "array-contains", user.uid),
+        orderBy("dateTime", "desc")
+    );
+  }, [user, firestore]);
+  const { data: upcomingRides, isLoading: ridesLoading } = useCollection<Ride>(ridesQuery);
+
+  // Fetch new ride suggestions from public collections
+   const pickupSuggestionsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(
+        collection(firestore, "pickupRequests"), 
+        where("status", "==", "open"),
+        where("riderId", "!=", user.uid),
+        limit(5)
+    );
+  }, [user, firestore]);
+  const { data: pickupSuggestions, isLoading: pickupLoading } = useCollection<PickupRequest>(pickupSuggestionsQuery);
+
+  const serviceSuggestionsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(
+        collection(firestore, "serviceRequests"),
+        where("status", "==", "open"),
+        where("passengerId", "!=", user.uid),
+        limit(5)
+    );
+  }, [user, firestore]);
+  const { data: serviceSuggestions, isLoading: serviceLoading } = useCollection<ServiceRequest>(serviceSuggestionsQuery);
+
+  const [suggestionsWithUsers, setSuggestionsWithUsers] = React.useState<Suggestion[]>([]);
+
+  // Effect to combine suggestions and fetch user data
   React.useEffect(() => {
-    if (!firestore || isUserLoading) return;
+    if (pickupLoading || serviceLoading || !firestore) return;
 
-    const fetchRequests = async () => {
-        setLoading(true);
-        if (!user) {
-            setRideRequests([]);
-            setLoading(false);
-            return;
-        }
+    const fetchUsers = async () => {
+        const allSuggestions = [
+            ...(pickupSuggestions || []).map(r => ({ ...r, type: 'pickup' as const })),
+            ...(serviceSuggestions || []).map(r => ({ ...r, type: 'service' as const }))
+        ];
 
-        const pickupRequestsRef = collection(firestore, `users/${user.uid}/pickup_requests`);
-        const serviceRequestsRef = collection(firestore, `users/${user.uid}/service_requests`);
-
-        const [pickupSnapshot, serviceSnapshot] = await Promise.all([
-            getDocs(pickupRequestsRef),
-            getDocs(serviceRequestsRef)
-        ]);
-        
-        const allRequests: (RideRequest & {type: 'pickup' | 'service'})[] = [];
-        pickupSnapshot.forEach(doc => {
-            allRequests.push({...(doc.data() as RideRequest), id: doc.id, type: 'pickup'});
-        });
-        serviceSnapshot.forEach(doc => {
-            allRequests.push({...(doc.data() as RideRequest), id: doc.id, type: 'service'});
-        });
-
-        // This part can be expanded to fetch all open suggestions from other users
-        const usersSnapshot = await getDocs(collection(firestore, 'users'));
-        const otherUserIds = usersSnapshot.docs.map(d => d.id).filter(id => id !== user.uid);
-
-        for (const otherUserId of otherUserIds) {
-            const otherPickups = await getDocs(collection(firestore, `users/${otherUserId}/pickup_requests`));
-            otherPickups.forEach(doc => {
-                if(doc.data().status === 'open') allRequests.push({...(doc.data() as RideRequest), id: doc.id, type: 'pickup'});
-            });
-            const otherServices = await getDocs(collection(firestore, `users/${otherUserId}/service_requests`));
-            otherServices.forEach(doc => {
-                if(doc.data().status === 'open') allRequests.push({...(doc.data() as RideRequest), id: doc.id, type: 'service'});
-            });
-        }
-        
-        const requestsWithUsers = await Promise.all(allRequests.map(r => fetchUserForRequest(firestore, r)));
-        setRideRequests(requestsWithUsers as any);
-        setLoading(false);
+        const suggestionsWithUsers = await Promise.all(
+            allSuggestions.map(async (req) => {
+                const userId = req.type === 'pickup' ? req.riderId : req.passengerId;
+                const userDocRef = doc(firestore, "users", userId);
+                const userDoc = await getDoc(userDocRef);
+                const user = userDoc.exists() ? userDoc.data() as UserProfile : {} as UserProfile;
+                return { ...req, user };
+            })
+        );
+        setSuggestionsWithUsers(suggestionsWithUsers as Suggestion[]);
     };
 
-    fetchRequests();
-
-  }, [firestore, user, isUserLoading]);
+    fetchUsers();
+  }, [pickupSuggestions, serviceSuggestions, firestore, pickupLoading, serviceLoading]);
   
-  if (isUserLoading || loading) {
+  if (isUserLoading || ridesLoading || pickupLoading || serviceLoading) {
     return <div className="flex items-center justify-center h-full"><p>Loading dashboard...</p></div>
   }
 
   if (!user) {
       return <div>Please log in to see your dashboard.</div>
   }
-
-  const upcomingRides = rideRequests.filter(r => (r.userId === user.uid || (r as any).passengerId === user.uid) && r.status === 'matched');
-  const suggestions = rideRequests.filter(r => (r.userId !== user.uid && (r as any).passengerId !== user.uid) && r.status === 'open');
-
+  
   return (
     <div className="flex flex-col gap-4 md:gap-8">
         <div className="space-y-1.5">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Welcome back!</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Welcome back!</h1>
             <p className="text-muted-foreground">Here's what's happening on SheRide today.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
@@ -157,7 +150,7 @@ export default function Dashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+{suggestions.length}</div>
+              <div className="text-2xl font-bold">+{suggestionsWithUsers.length}</div>
               <p className="text-xs text-muted-foreground">
                 Potential rides waiting
               </p>
@@ -169,7 +162,7 @@ export default function Dashboard() {
               <Bike className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{upcomingRides.length}</div>
+              <div className="text-2xl font-bold">{upcomingRides?.length || 0}</div>
               <p className="text-xs text-muted-foreground">
                 Ready for your next journey
               </p>
@@ -217,19 +210,19 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {suggestions.slice(0, 3).map(ride => (
+                  {suggestionsWithUsers.slice(0, 3).map(ride => (
                      <TableRow key={ride.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Avatar className="hidden h-9 w-9 sm:flex">
-                              <AvatarImage src={(ride.user as any).avatarUrl} alt="Avatar" />
+                              <AvatarImage src={(placeholderImages.find(p=>p.id === 'avatar2')?.imageUrl)} alt="Avatar" />
                               <AvatarFallback>{ride.user.name?.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div className="font-medium">{ride.user.name}</div>
                           </div>
                         </TableCell>
                         <TableCell>
-                            <div className="font-medium truncate max-w-40">{ride.startLocation} to {ride.destination}</div>
+                            <div className="font-medium truncate max-w-40">{ride.type === 'pickup' ? ride.startingLocation : (ride as ServiceRequest).pickupLocation} to {ride.destination}</div>
                         </TableCell>
                          <TableCell className="hidden sm:table-cell">
                             {new Date(ride.dateTime).toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: 'numeric' })}
@@ -250,18 +243,18 @@ export default function Dashboard() {
               <CardTitle>Upcoming Confirmed Rides</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4">
-               {upcomingRides.length > 0 ? upcomingRides.map(ride => (
+               {(upcomingRides && upcomingRides.length > 0) ? upcomingRides.map(ride => (
                  <div className=" flex items-center gap-4" key={ride.id}>
                     <Avatar className="hidden h-9 w-9 sm:flex">
-                      <AvatarImage src={(ride.user as any).avatarUrl} alt="Avatar" />
-                      <AvatarFallback>{ride.user.name?.charAt(0)}</AvatarFallback>
+                       <AvatarImage src={(placeholderImages.find(p=>p.id === 'avatar3')?.imageUrl)} alt="Avatar" />
+                       <AvatarFallback>{ride.riderId.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="grid gap-1">
                       <p className="text-sm font-medium leading-none">
-                        {ride.startLocation} &rarr; {ride.destination}
+                         Ride with {ride.passengerId}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        with {ride.user.name} on {new Date(ride.dateTime).toLocaleDateString()}
+                        on {new Date(ride.dateTime).toLocaleDateString()}
                       </p>
                     </div>
                     <Button variant="ghost" size="icon" className="ml-auto">
@@ -277,5 +270,3 @@ export default function Dashboard() {
       </div>
   )
 }
-
-    

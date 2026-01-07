@@ -1,4 +1,5 @@
-import { type UserProfile } from "./schemas";
+import { type PickupRequest as PickupRequestSchema, type ServiceRequest as ServiceRequestSchema, type UserProfile, type Ride as RideSchema } from "./schemas";
+
 
 export type User = UserProfile & {
     id: string;
@@ -6,17 +7,12 @@ export type User = UserProfile & {
     isVerified: boolean;
 };
 
-export type RideRequest = {
+// Combining Pickup and Service requests for easier handling in some UI components
+export type RideRequest = (PickupRequestSchema | ServiceRequestSchema) & {
   id: string;
-  type: 'pickup' | 'service';
-  user: User; // This might be simplified to just userId
+  user: UserProfile;
   userId: string;
-  startLocation: string;
-  destination: string;
-  dateTime: string; // Storing as ISO string or timestamp number
-  vehicleType?: 'Bike' | 'Scooty';
   status: 'open' | 'matched' | 'confirmed';
-  expectedCost?: number;
 };
 
 export type Notification = {
@@ -25,3 +21,7 @@ export type Notification = {
   time: string;
   read: boolean;
 };
+
+export type Ride = RideSchema;
+export type PickupRequest = PickupRequestSchema;
+export type ServiceRequest = ServiceRequestSchema;

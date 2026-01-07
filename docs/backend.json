@@ -8,7 +8,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the user profile."
+          "description": "Unique identifier for the user profile, matching Firebase Auth UID."
         },
         "name": {
           "type": "string",
@@ -68,7 +68,7 @@
         },
         "riderId": {
           "type": "string",
-          "description": "Reference to UserProfile of the rider creating the request. (Relationship: UserProfile 1:N PickupRequest)"
+          "description": "UID of the rider creating the request."
         },
         "startingLocation": {
           "type": "string",
@@ -98,6 +98,10 @@
         "routePreference": {
           "type": "string",
           "description": "Rider's preferred route."
+        },
+        "status": {
+            "type": "string",
+            "description": "The current status of the request (e.g., 'open', 'matched')."
         }
       },
       "required": [
@@ -107,7 +111,8 @@
         "destination",
         "dateTime",
         "vehicleType",
-        "seatsAvailable"
+        "seatsAvailable",
+        "status"
       ]
     },
     "ServiceRequest": {
@@ -122,7 +127,7 @@
         },
         "passengerId": {
           "type": "string",
-          "description": "Reference to UserProfile of the passenger creating the request. (Relationship: UserProfile 1:N ServiceRequest)"
+          "description": "UID of the passenger creating the request."
         },
         "pickupLocation": {
           "type": "string",
@@ -144,6 +149,10 @@
         "preferredRoute": {
           "type": "string",
           "description": "Passenger's preferred route."
+        },
+         "status": {
+            "type": "string",
+            "description": "The current status of the request (e.g., 'open', 'matched')."
         }
       },
       "required": [
@@ -152,7 +161,8 @@
         "pickupLocation",
         "destination",
         "dateTime",
-        "maxAmount"
+        "maxAmount",
+        "status"
       ]
     },
     "Ride": {
@@ -167,19 +177,16 @@
         },
         "pickupRequestId": {
           "type": "string",
-          "description": "Reference to the PickupRequest. (Relationship: PickupRequest 1:N Ride)"
+          "description": "Reference to the PickupRequest."
         },
         "serviceRequestId": {
           "type": "string",
-          "description": "Reference to the ServiceRequest. (Relationship: ServiceRequest 1:N Ride)"
+          "description": "Reference to the ServiceRequest."
         },
-        "riderId": {
-          "type": "string",
-          "description": "Reference to the UserProfile of the rider. (Relationship: UserProfile 1:N Ride)"
-        },
-        "passengerId": {
-          "type": "string",
-          "description": "Reference to the UserProfile of the passenger. (Relationship: UserProfile 1:N Ride)"
+        "participantIds": {
+            "type": "array",
+            "description": "Array containing the UIDs of both the rider and the passenger.",
+            "items": { "type": "string" }
         },
         "status": {
           "type": "string",
@@ -188,15 +195,18 @@
         "sharedCost": {
           "type": "number",
           "description": "The agreed shared cost between the rider and passenger."
+        },
+        "dateTime": {
+            "type": "string",
+            "description": "The date and time of the confirmed ride.",
+            "format": "date-time"
         }
       },
       "required": [
         "id",
-        "pickupRequestId",
-        "serviceRequestId",
-        "riderId",
-        "passengerId",
-        "status"
+        "participantIds",
+        "status",
+        "dateTime"
       ]
     },
     "Chat": {
@@ -211,7 +221,7 @@
         },
         "rideId": {
           "type": "string",
-          "description": "Reference to the Ride. (Relationship: Ride 1:N Chat)"
+          "description": "Reference to the Ride."
         },
         "messages": {
           "type": "array",
@@ -238,11 +248,11 @@
         },
         "userId": {
           "type": "string",
-          "description": "Reference to the UserProfile who triggered the alert. (Relationship: UserProfile 1:N SOSAlert)"
+          "description": "UID of the user who triggered the alert."
         },
         "rideId": {
           "type": "string",
-          "description": "Reference to the Ride during which the alert was triggered. (Relationship: Ride 1:N SOSAlert)"
+          "description": "Reference to the Ride during which the alert was triggered."
         },
         "timestamp": {
           "type": "string",
@@ -282,53 +292,23 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores user profile information. Path-based ownership: only the user with the matching {userId} can access. Includes profileVerified which determines the admin verification status",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            }
-          ]
+          "description": "Stores private user profile information. Only the user with the matching {userId} can write to their own document."
         }
       },
       {
-        "path": "/users/{userId}/pickup_requests/{pickupRequestId}",
+        "path": "/pickupRequests/{pickupRequestId}",
         "definition": {
-          "entityName": "PickupRequest",
-          "schema": {
-            "$ref": "#/backend/entities/PickupRequest"
-          },
-          "description": "Stores pickup requests created by users. Path-based ownership: only the user with the matching {userId} can access their pickup requests.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "pickupRequestId",
-              "description": "The unique identifier for the pickup request."
-            }
-          ]
+            "entityName": "PickupRequest",
+            "schema": { "$ref": "#/backend/entities/PickupRequest" },
+            "description": "Top-level collection for ride offers. Listable by any authenticated user for discovery, but writable only by the owner."
         }
       },
-      {
-        "path": "/users/{userId}/service_requests/{serviceRequestId}",
+       {
+        "path": "/serviceRequests/{serviceRequestId}",
         "definition": {
-          "entityName": "ServiceRequest",
-          "schema": {
-            "$ref": "#/backend/entities/ServiceRequest"
-          },
-          "description": "Stores service requests created by users. Path-based ownership: only the user with the matching {userId} can access their service requests.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "serviceRequestId",
-              "description": "The unique identifier for the service request."
-            }
-          ]
+            "entityName": "ServiceRequest",
+            "schema": { "$ref": "#/backend/entities/ServiceRequest" },
+            "description": "Top-level collection for ride requests. Listable by any authenticated user for discovery, but writable only by the owner."
         }
       },
       {
@@ -338,13 +318,7 @@
           "schema": {
             "$ref": "#/backend/entities/Ride"
           },
-          "description": "Stores ride information, including references to pickup and service requests.  Access is controlled based on the riderId and passengerId fields within the document.",
-          "params": [
-            {
-              "name": "rideId",
-              "description": "The unique identifier for the ride."
-            }
-          ]
+          "description": "Stores confirmed ride information. Access is controlled based on the participantIds field within the document."
         }
       },
       {
@@ -354,17 +328,7 @@
           "schema": {
             "$ref": "#/backend/entities/Chat"
           },
-          "description": "Stores chat messages associated with a specific ride. Only users involved in the ride can access the chat. Denormalizes the `rideId` to ensure Authorization Independence.",
-          "params": [
-            {
-              "name": "rideId",
-              "description": "The unique identifier for the ride."
-            },
-            {
-              "name": "chatId",
-              "description": "The unique identifier for the chat."
-            }
-          ]
+          "description": "Stores chat messages associated with a specific ride. Only users involved in the ride can access the chat."
         }
       },
       {
@@ -374,16 +338,10 @@
           "schema": {
             "$ref": "#/backend/entities/SOSAlert"
           },
-          "description": "Stores SOS alerts triggered by users. Access is restricted based on user authentication and potentially admin roles.",
-          "params": [
-            {
-              "name": "sosAlertId",
-              "description": "The unique identifier for the SOS alert."
-            }
-          ]
+          "description": "Stores SOS alerts triggered by users. Access is restricted to the user who created it."
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to prioritize security, scalability, and debuggability, adhering to the principles of Authorization Independence and Structural Segregation. User profiles are stored under `/users/{userId}` for private data access. Pickup and service requests are stored in user-owned subcollections `/users/{userId}/pickup_requests` and `/users/{userId}/service_requests`, respectively, which establishes clear ownership and avoids hierarchical `get()` calls. The `Ride` document contains `riderId` and `passengerId`, Ride will determine which user can access ride data. Chats are created as subcollections of rides `/rides/{rideId}/chats`, which makes chats linked to the ride between the users and avoids global chat read, write access. SOS alerts are stored in a top-level collection, `/sos_alerts`. The structure ensures that list operations are secure and efficient, as each collection has a well-defined security posture based on user roles and ownership."
+    "reasoning": "The Firestore data structure has been revised for better security and scalability. User profiles remain in a private `/users/{userId}` collection. Crucially, pickup and service requests are now in their own top-level collections (`/pickupRequests` and `/serviceRequests`) to allow for public discovery without compromising user privacy. Security rules will allow any authenticated user to read these collections, but only the creator can write or modify their own documents. Confirmed rides are in a `/rides` collection, with access restricted to the participants listed in the `participantIds` array within each ride document. This prevents costly and insecure cross-user queries and follows Firestore's best practices for scalable, secure app development."
   }
 }

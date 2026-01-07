@@ -33,7 +33,7 @@ export default function CreateServicePage() {
             status: 'open',
         };
         
-        const serviceRequestsRef = collection(firestore, `users/${user.uid}/service_requests`);
+        const serviceRequestsRef = collection(firestore, `serviceRequests`);
         addDocumentNonBlocking(serviceRequestsRef, serviceRequest);
 
         toast({

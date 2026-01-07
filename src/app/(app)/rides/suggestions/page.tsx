@@ -4,80 +4,69 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useFirebase } from "@/firebase";
-import { RideRequest } from "@/lib/types";
-import { collection, doc, getDoc, getDocs } from "firebase/firestore";
+import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
+import { collection, doc, getDoc, query, where, limit } from "firebase/firestore";
 import { ArrowRight, Bike, User } from "lucide-react";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
-import { UserProfile } from "@/lib/schemas";
+import { UserProfile, PickupRequest, ServiceRequest } from "@/lib/schemas";
 import { placeholderImages } from "@/lib/placeholder-images";
 
-type RideRequestWithUser = RideRequest & { user: UserProfile, type: 'pickup' | 'service', userId: string };
-
-async function fetchUserForRequest(firestore: any, request: RideRequest & {type: 'pickup' | 'service'}): Promise<RideRequestWithUser> {
-    const userId = request.type === 'pickup' ? (request as any).riderId : (request as any).passengerId;
-    if (!userId) {
-        console.warn("Request without user id", request);
-        return { ...request, user: {} as UserProfile, userId: '' };
-    }
-    const userDocRef = doc(firestore, "users", userId);
-    const userDoc = await getDoc(userDocRef);
-    const user = userDoc.exists() ? userDoc.data() as UserProfile : {} as UserProfile;
-    return { ...request, user, userId };
-}
-
+type Suggestion = (PickupRequest | ServiceRequest) & { user: UserProfile; type: 'pickup' | 'service' };
 
 export default function SuggestionsPage() {
     const { firestore, user: currentUser, isUserLoading } = useFirebase();
-    const [suggestions, setSuggestions] = useState<RideRequestWithUser[]>([]);
-    const [loading, setLoading] = useState(true);
-    
+
+    // Fetch ride suggestions from public collections
+    const pickupSuggestionsQuery = useMemoFirebase(() => {
+        if (!currentUser || !firestore) return null;
+        return query(
+            collection(firestore, "pickupRequests"),
+            where("status", "==", "open"),
+            where("riderId", "!=", currentUser.uid)
+        );
+    }, [currentUser, firestore]);
+    const { data: pickupSuggestions, isLoading: pickupLoading } = useCollection<PickupRequest>(pickupSuggestionsQuery);
+
+    const serviceSuggestionsQuery = useMemoFirebase(() => {
+        if (!currentUser || !firestore) return null;
+        return query(
+            collection(firestore, "serviceRequests"),
+            where("status", "==", "open"),
+            where("passengerId", "!=", currentUser.uid)
+        );
+    }, [currentUser, firestore]);
+    const { data: serviceSuggestions, isLoading: serviceLoading } = useCollection<ServiceRequest>(serviceSuggestionsQuery);
+
+    const [suggestionsWithUsers, setSuggestionsWithUsers] = useState<Suggestion[]>([]);
+
+    // Effect to combine suggestions and fetch user data
     useEffect(() => {
-        if (!firestore || isUserLoading) return;
+        if (pickupLoading || serviceLoading || !firestore) return;
 
-        const fetchAll = async () => {
-            setLoading(true);
-            if (!currentUser) {
-                setSuggestions([]);
-                setLoading(false);
-                return;
-            }
+        const fetchUsers = async () => {
+            const allSuggestions = [
+                ...(pickupSuggestions || []).map(r => ({ ...r, type: 'pickup' as const })),
+                ...(serviceSuggestions || []).map(r => ({ ...r, type: 'service' as const }))
+            ];
 
-            const usersSnapshot = await getDocs(collection(firestore, 'users'));
-            const otherUserIds = usersSnapshot.docs.map(d => d.id).filter(id => id !== currentUser.uid);
-
-            const allRequestsPromises: Promise<any>[] = [];
-
-            otherUserIds.forEach(userId => {
-                const pickupsRef = collection(firestore, `users/${userId}/pickup_requests`);
-                allRequestsPromises.push(getDocs(pickupsRef).then(snapshot => 
-                    snapshot.docs.map(doc => ({...(doc.data()), id: doc.id, type: 'pickup' as const}))
-                ));
-
-                const servicesRef = collection(firestore, `users/${userId}/service_requests`);
-                allRequestsPromises.push(getDocs(servicesRef).then(snapshot => 
-                    snapshot.docs.map(doc => ({...(doc.data()), id: doc.id, type: 'service' as const}))
-                ));
-            });
-
-            const results = await Promise.all(allRequestsPromises);
-            const allRequests = results.flat().filter(r => r.status === 'open');
-
-            const suggestionsWithUsers = await Promise.all(
-                allRequests.map(req => fetchUserForRequest(firestore, req))
+            const populatedSuggestions = await Promise.all(
+                allSuggestions.map(async (req) => {
+                    const userId = req.type === 'pickup' ? req.riderId : req.passengerId;
+                    const userDocRef = doc(firestore, "users", userId);
+                    const userDoc = await getDoc(userDocRef);
+                    const user = userDoc.exists() ? userDoc.data() as UserProfile : {} as UserProfile;
+                    return { ...req, user };
+                })
             );
+            setSuggestionsWithUsers(populatedSuggestions as Suggestion[]);
+        };
 
-            setSuggestions(suggestionsWithUsers);
-            setLoading(false);
-        }
-        fetchAll();
+        fetchUsers();
+    }, [pickupSuggestions, serviceSuggestions, firestore, pickupLoading, serviceLoading]);
 
-    }, [firestore, currentUser, isUserLoading]);
-
-
-    if (loading || isUserLoading) {
-        return <div>Loading suggestions...</div>
+    if (isUserLoading || pickupLoading || serviceLoading) {
+        return <div className="flex items-center justify-center h-full"><p>Loading suggestions...</p></div>
     }
 
     if (!currentUser) {
@@ -91,7 +80,7 @@ export default function SuggestionsPage() {
                 <p className="text-muted-foreground">Here are some ride offers and requests that match your potential routes.</p>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {suggestions.length > 0 ? suggestions.map(ride => (
+                {suggestionsWithUsers.length > 0 ? suggestionsWithUsers.map(ride => (
                     <Card key={ride.id} className="flex flex-col">
                         <CardHeader>
                             <div className="flex items-center justify-between">
@@ -112,7 +101,7 @@ export default function SuggestionsPage() {
                         </CardHeader>
                         <CardContent className="flex-1">
                             <div className="flex items-center gap-4 text-sm font-semibold">
-                                <span>{ride.startLocation || (ride as any).pickupLocation}</span>
+                                <span>{ride.type === 'pickup' ? ride.startingLocation : (ride as ServiceRequest).pickupLocation}</span>
                                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
                                 <span>{ride.destination}</span>
                             </div>
@@ -128,7 +117,7 @@ export default function SuggestionsPage() {
                             </p>
                             <div className="flex items-center gap-2 mt-4 text-sm">
                                 {ride.type === 'pickup' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
-                                <span>{ride.vehicleType ? `Vehicle: ${ride.vehicleType}` : 'Passenger request'}</span>
+                                <span>{ride.type === 'pickup' ? `Vehicle: ${(ride as PickupRequest).vehicleType}` : 'Passenger request'}</span>
                             </div>
                         </CardContent>
                         <CardFooter className="flex gap-2">

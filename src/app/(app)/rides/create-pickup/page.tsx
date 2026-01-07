@@ -36,7 +36,7 @@ export default function CreatePickupPage() {
             status: 'open',
         };
 
-        const pickupRequestsRef = collection(firestore, `users/${user.uid}/pickup_requests`);
+        const pickupRequestsRef = collection(firestore, `pickupRequests`);
         addDocumentNonBlocking(pickupRequestsRef, pickupRequest);
 
         toast({
