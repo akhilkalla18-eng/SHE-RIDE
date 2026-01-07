@@ -151,11 +151,15 @@ service cloud.firestore {
      * @path /rides/{rideId}
      * @allow (get, update) The rider or the passenger can get or update the ride document.
      * @allow (create) An authenticated user can create a ride document.
-     * @deny (list) Listing all rides is forbidden for privacy.
+     * @allow (list) A user can only query for rides they are a part of.
+     * @deny (delete) Deleting rides is restricted.
      */
     match /rides/{rideId} {
       allow get, update: if isRideParticipant(rideId);
-      allow list: if false;
+      // This rule allows a user to query the 'rides' collection, but ONLY if
+      // the query includes a 'where("participantIds", "array-contains", request.auth.uid)' clause.
+      // This prevents users from listing all rides and only allows them to see their own.
+      allow list: if isSignedIn() && request.query.where.participantIds.includes('array-contains', request.auth.uid);
       allow create: if isSignedIn();
       allow delete: if isRideParticipant(rideId);
           
