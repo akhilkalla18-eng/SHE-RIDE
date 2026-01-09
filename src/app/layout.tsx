@@ -1,12 +1,18 @@
 import type { Metadata } from 'next';
 import { Toaster } from "@/components/ui/toaster"
 import './globals.css';
-import { Inter } from 'next/font/google';
+import { Belleza, Alegreya } from 'next/font/google';
 import { cn } from '@/lib/utils';
 
-const fontSans = Inter({
+const fontBelleza = Belleza({
   subsets: ["latin"],
-  variable: "--font-sans",
+  weight: "400",
+  variable: "--font-belleza",
+})
+
+const fontAlegreya = Alegreya({
+  subsets: ["latin"],
+  variable: "--font-alegreya",
 })
 
 export const metadata: Metadata = {
@@ -22,8 +28,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn(
-        "min-h-screen bg-background font-sans antialiased",
-        fontSans.variable
+        "min-h-screen bg-background font-body antialiased",
+        fontBelleza.variable,
+        fontAlegreya.variable
       )}>
           {children}
         <Toaster />
