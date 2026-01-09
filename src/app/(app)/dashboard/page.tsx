@@ -31,19 +31,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import React from "react"
-import { type Ride, type PickupRequest, type ServiceRequest, UserProfile } from "@/lib/schemas"
+import React, { useState, useEffect } from "react"
 import { placeholderImages } from "@/lib/placeholder-images"
 import { notifications } from "@/lib/data"
-
-const chartData = [
-    { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "Feb", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "Mar", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "Apr", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "May", total: Math.floor(Math.random() * 50) + 10 },
-    { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
-];
 
 const upcomingRides: any[] = [
     { id: '1', passengerId: 'Anjali', dateTime: '2024-08-15T10:00:00.000Z', riderId: 'Priya' },
@@ -56,6 +46,18 @@ const suggestionsWithUsers = [
 ];
 
 export default function Dashboard() {
+  const [chartData, setChartData] = useState<any[]>([]);
+
+  useEffect(() => {
+    setChartData([
+        { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "Feb", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "Mar", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "Apr", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "May", total: Math.floor(Math.random() * 50) + 10 },
+        { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
+    ]);
+  }, []);
   
   return (
     <div className="flex flex-col gap-4 md:gap-8">

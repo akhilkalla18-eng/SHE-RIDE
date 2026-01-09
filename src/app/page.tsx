@@ -13,7 +13,7 @@ export default function LandingPage() {
     <div className="flex flex-col min-h-screen">
       <header className="px-4 lg:px-6 h-16 flex items-center bg-background/80 backdrop-blur-sm fixed top-0 w-full z-50">
         <Link href="/" className="flex items-center justify-center" prefetch={false}>
-          <Logo className="h-8 w-auto text-primary" />
+          <Logo className="h-8 w-auto" />
           <span className="sr-only">SheRide</span>
         </Link>
         <nav className="ml-auto flex gap-4 sm:gap-6">
@@ -37,7 +37,7 @@ export default function LandingPage() {
                   <br />
                   <span className="text-primary">By Women, For Women.</span>
                 </h1>
-                <p className="max-w-[700px] text-foreground/80 md:text-xl">
+                <p className="max-w-[700px] text-muted-foreground md:text-xl">
                   SheRide is a community-based ride-sharing platform connecting women for safer, more comfortable, and affordable travel. Share rides, not worries.
                 </p>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
@@ -69,13 +69,13 @@ export default function LandingPage() {
           </div>
         </section>
         
-        <section id="how-it-works" className="w-full py-12 md:py-24 lg:py-32 bg-accent">
+        <section id="how-it-works" className="w-full py-12 md:py-24 lg:py-32 bg-muted/50">
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
                 <div className="inline-block rounded-lg bg-secondary px-3 py-1 text-sm">How It Works</div>
                 <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">A Simple Path to Safer Rides</h2>
-                <p className="max-w-[900px] text-foreground/80 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
+                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                   Our platform is designed to be intuitive and secure, connecting you with fellow women travelers in just a few steps.
                 </p>
               </div>
@@ -86,7 +86,7 @@ export default function LandingPage() {
                   <Users className="h-8 w-8" />
                 </div>
                 <h3 className="text-xl font-bold">1. Create Your Profile</h3>
-                <p className="text-sm text-foreground/80">
+                <p className="text-sm text-muted-foreground">
                   Sign up and complete your profile. Our verification process ensures a community of trusted women.
                 </p>
               </div>
@@ -95,7 +95,7 @@ export default function LandingPage() {
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8"><path d="M12 22c-4 0-8-3-8-8 0-4.5 4-8.5 8-8.5s8 4 8 8.5c0 5-4 8-8 8Z"/><path d="M12 2a6 6 0 0 1 6 6v1H6V8a6 6 0 0 1 6-6Z"/><path d="M12 11v-1"/><path d="m15 11-1-1"/><path d="m9 11 1-1"/></svg>
                 </div>
                 <h3 className="text-xl font-bold">2. Find or Offer a Ride</h3>
-                <p className="text-sm text-foreground/80">
+                <p className="text-sm text-muted-foreground">
                   Request a ride for your commute or offer a seat to someone on your route. Our matching system connects you.
                 </p>
               </div>
@@ -104,7 +104,7 @@ export default function LandingPage() {
                    <CheckCircle className="h-8 w-8" />
                 </div>
                 <h3 className="text-xl font-bold">3. Travel Together</h3>
-                <p className="text-sm text-foreground/80">
+                <p className="text-sm text-muted-foreground">
                   Chat with your match, confirm the details, and share your journey. Enjoy a safe and comfortable ride.
                 </p>
               </div>
@@ -117,7 +117,7 @@ export default function LandingPage() {
             <div className="space-y-4">
               <div className="inline-block rounded-lg bg-secondary px-3 py-1 text-sm">Our Safety Promise</div>
               <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">Your Safety is Our Foundation</h2>
-              <p className="max-w-[600px] text-foreground/80 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
+              <p className="max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                 We've built SheRide from the ground up with features designed to create a secure and trustworthy environment for all members.
               </p>
               <ul className="grid gap-4">
@@ -125,28 +125,28 @@ export default function LandingPage() {
                   <Shield className="mt-1 h-6 w-6 text-primary" />
                   <div>
                     <h3 className="font-semibold">Women-Only Platform</h3>
-                    <p className="text-sm text-foreground/80">Strictly for users who identify as women, creating a comfortable space for all.</p>
+                    <p className="text-sm text-muted-foreground">Strictly for users who identify as women, creating a comfortable space for all.</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle className="mt-1 h-6 w-6 text-primary" />
                   <div>
                     <h3 className="font-semibold">Profile Verification</h3>
-                    <p className="text-sm text-foreground/80">Optional ID verification for a "Verified" badge, adding an extra layer of trust.</p>
+                    <p className="text-sm text-muted-foreground">Optional ID verification for a "Verified" badge, adding an extra layer of trust.</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-1 h-6 w-6 text-primary"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
                   <div>
                     <h3 className="font-semibold">In-App Chat</h3>
-                    <p className="text-sm text-foreground/80">Communicate securely without sharing personal contact information until you're ready.</p>
+                    <p className="text-sm text-muted-foreground">Communicate securely without sharing personal contact information until you're ready.</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-1 h-6 w-6 text-primary"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                   <div>
                     <h3 className="font-semibold">SOS &amp; Emergency Contacts</h3>
-                    <p className="text-sm text-foreground/80">An in-ride SOS button and emergency contact feature are there for your peace of mind.</p>
+                    <p className="text-sm text-muted-foreground">An in-ride SOS button and emergency contact feature are there for your peace of mind.</p>
                   </div>
                 </li>
               </ul>
@@ -166,8 +166,8 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
-      <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t bg-accent">
-        <p className="text-xs text-foreground/60">&copy; {new Date().getFullYear()} SheRide. All rights reserved.</p>
+      <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t bg-muted/50">
+        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} SheRide. All rights reserved.</p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
             Terms of Service

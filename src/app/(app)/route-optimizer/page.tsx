@@ -109,7 +109,7 @@ export default function RouteOptimizerPage() {
                 </Card>
             </div>
             <div className="space-y-6">
-                <h2 className="text-2xl font-bold font-headline">AI Suggestion</h2>
+                <h2 className="text-2xl font-bold">AI Suggestion</h2>
                 {state.message === "success" && state.data ? (
                      <div className="space-y-6">
                         <Card>

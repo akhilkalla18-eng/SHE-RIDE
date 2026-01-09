@@ -18,7 +18,7 @@ export default function AuthLayout({
             <Link href="/" className="flex justify-center">
                 <Logo className="h-10 w-auto" />
             </Link>
-            <h1 className="text-3xl font-bold font-headline">Welcome to SheRide</h1>
+            <h1 className="text-3xl font-bold">Welcome to SheRide</h1>
             <p className="text-balance text-muted-foreground">
               Enter your details to join our community
             </p>
