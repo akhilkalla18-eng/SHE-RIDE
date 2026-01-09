@@ -3,13 +3,13 @@
     {
       "id": "hero",
       "description": "Two women smiling while one rides a scooter on a city street.",
-      "imageUrl": "https://images.unsplash.com/photo-1744100012416-1095d420dfb7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx3b21lbiUyMHNjb290ZXJ8ZW58MHx8fHwxNzY3NzkyNzY2fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageUrl": "https://storage.googleapis.com/aip-dev-images-prod/12471a42-5f65-4303-9118-8ea59c0d296c.png",
       "imageHint": "women scooter"
     },
     {
       "id": "safety",
       "description": "A woman with a scooter offering a ride to another woman, both smiling, embodying the SheRide concept of community and shared travel against a theme-appropriate backdrop.",
-      "imageUrl": "https://storage.googleapis.com/aip-dev-images-prod/07137f62-7901-4475-a0f5-51f7d23d8c1c.png",
+      "imageUrl": "https://storage.googleapis.com/aip-dev-images-prod/2311295b-01a0-4e89-9a74-2ab77f722f46.png",
       "imageHint": "woman scooter share"
     },
     {
