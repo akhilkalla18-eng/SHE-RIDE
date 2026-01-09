@@ -12,7 +12,7 @@ export function Logo(props: SVGProps<SVGSVGElement>) {
       <text
         x="0"
         y="24"
-        fontFamily="Inter, sans-serif"
+        fontFamily="var(--font-sans), sans-serif"
         fontSize="28"
         fontWeight="bold"
         fill="currentColor"
