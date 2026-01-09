@@ -8,6 +8,7 @@ import { placeholderImages } from '@/lib/placeholder-images';
 
 export default function LandingPage() {
   const heroImage = placeholderImages.find(p => p.id === 'hero');
+  const safetyImage = placeholderImages.find(p => p.id === 'safety');
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -152,14 +153,14 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="hidden lg:block">
-                {heroImage && (
+                {safetyImage && (
                     <Image
-                        src={placeholderImages.find(p => p.id === 'safety')?.imageUrl || ''}
-                        alt={placeholderImages.find(p => p.id === 'safety')?.description || ''}
+                        src={safetyImage.imageUrl}
+                        alt={safetyImage.description}
                         width={600}
                         height={600}
                         className="mx-auto aspect-square overflow-hidden rounded-xl object-cover"
-                        data-ai-hint={placeholderImages.find(p => p.id === 'safety')?.imageHint || ''}
+                        data-ai-hint={safetyImage.imageHint}
                     />
                 )}
             </div>
