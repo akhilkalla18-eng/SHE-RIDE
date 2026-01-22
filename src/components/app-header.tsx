@@ -28,23 +28,26 @@ import Link from "next/link"
 import { Bell, LifeBuoy, LogOut, TriangleAlert } from "lucide-react"
 import { notifications } from "@/lib/data"
 import { useToast } from "@/hooks/use-toast"
-import { type UserProfile } from "@/lib/schemas"
+import { useAuth, useUser, addDocumentNonBlocking, useFirestore } from "@/firebase"
+import { signOut } from "firebase/auth"
+import { collection } from "firebase/firestore"
 import { placeholderImages } from "@/lib/placeholder-images"
-
-const userProfile: UserProfile = {
-  id: "1",
-  name: "Priya Sharma",
-  email: "priya@example.com",
-  city: "Mumbai",
-  phoneNumber: "+91 98765 43210",
-  profileVerified: true,
-};
-
 
 export function AppHeader() {
     const { toast } = useToast()
+    const auth = useAuth();
+    const { user } = useUser();
+    const firestore = useFirestore();
 
     const handleSosClick = () => {
+        if (!user) return;
+        const alertsRef = collection(firestore, "sos_alerts");
+        addDocumentNonBlocking(alertsRef, {
+            userId: user.uid,
+            timestamp: new Date().toISOString(),
+            location: "User's current location" // This would be replaced with actual location services
+        });
+
         toast({
             title: "SOS Alert Sent",
             description: "Your emergency contacts and our support team have been notified.",
@@ -52,7 +55,7 @@ export function AppHeader() {
         })
     }
     const handleLogout = () => {
-        // No-op
+        signOut(auth);
     }
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30 bg-background/80 backdrop-blur-sm">
@@ -90,7 +93,7 @@ export function AppHeader() {
 
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="destructive" size="sm">
+          <Button variant="destructive" size="sm" disabled={!user}>
             <TriangleAlert className="mr-2 h-4 w-4" /> SOS
           </Button>
         </AlertDialogTrigger>
@@ -112,8 +115,8 @@ export function AppHeader() {
         <DropdownMenuTrigger asChild>
           <Button variant="secondary" size="icon" className="rounded-full">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={userProfile?.name} />
-              <AvatarFallback>{userProfile?.name?.charAt(0)}</AvatarFallback>
+              <AvatarImage src={user?.photoURL || placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={user?.displayName || "User"} />
+              <AvatarFallback>{user?.displayName?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
             </Avatar>
             <span className="sr-only">Toggle user menu</span>
           </Button>
@@ -132,11 +135,9 @@ export function AppHeader() {
             <span>Support</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleLogout} asChild>
-            <Link href="/">
+          <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Logout</span>
-            </Link>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

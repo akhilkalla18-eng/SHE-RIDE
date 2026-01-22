@@ -34,10 +34,9 @@ import {
 import React, { useState, useEffect } from "react"
 import { placeholderImages } from "@/lib/placeholder-images"
 import { notifications } from "@/lib/data"
-
-const upcomingRides: any[] = [
-    { id: '1', passengerId: 'Anjali', dateTime: '2024-08-15T10:00:00.000Z', riderId: 'Priya' },
-];
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
+import { collection, query, where } from "firebase/firestore"
+import { Ride } from "@/lib/schemas"
 
 const suggestionsWithUsers = [
     { id: 's1', type: 'pickup', startingLocation: 'Juhu, Mumbai', destination: 'Powai, Mumbai', dateTime: '2024-08-16T18:00:00.000Z', user: { name: 'Sunita' } },
@@ -47,6 +46,15 @@ const suggestionsWithUsers = [
 
 export default function Dashboard() {
   const [chartData, setChartData] = useState<any[]>([]);
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const ridesQuery = useMemoFirebase(
+    () => user ? query(collection(firestore, 'rides'), where('participantIds', 'array-contains', user.uid)) : null,
+    [user, firestore]
+  );
+  const { data: upcomingRides } = useCollection<Ride>(ridesQuery);
+
 
   useEffect(() => {
     setChartData([
@@ -62,7 +70,7 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-4 md:gap-8">
         <div className="space-y-1.5">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Welcome back!</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Welcome back, {user?.displayName || 'User'}!</h1>
             <p className="text-muted-foreground">Here's what's happening on SheRide today.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
@@ -127,7 +135,7 @@ export default function Dashboard() {
               <div className="grid gap-2">
                 <CardTitle>New Ride Suggestions</CardTitle>
                 <CardDescription>
-                  Women traveling on similar routes.
+                  Women traveling on similar routes. Fetching all ride requests is not yet implemented.
                 </CardDescription>
               </div>
               <Button asChild size="sm" className="ml-auto gap-1">
@@ -185,11 +193,11 @@ export default function Dashboard() {
                  <div className=" flex items-center gap-4" key={ride.id}>
                     <Avatar className="hidden h-9 w-9 sm:flex">
                        <AvatarImage src={(placeholderImages.find(p=>p.id === 'avatar3')?.imageUrl)} alt="Avatar" />
-                       <AvatarFallback>{ride.riderId.charAt(0)}</AvatarFallback>
+                       <AvatarFallback>{ride.participantIds[0].charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="grid gap-1">
                       <p className="text-sm font-medium leading-none">
-                         Ride with {ride.passengerId}
+                         Ride with a user
                       </p>
                       <p className="text-sm text-muted-foreground">
                         on {new Date(ride.dateTime).toLocaleDateString()}

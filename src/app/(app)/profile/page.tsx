@@ -6,45 +6,75 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { type UserProfile } from "@/lib/schemas";
+import { useDoc, useFirestore, useMemoFirebase, useUser, updateDocumentNonBlocking } from "@/firebase";
+import { UserProfile } from "@/lib/schemas";
 import { CheckCircle, Shield } from "lucide-react";
 import React from "react";
 import { useToast } from "@/hooks/use-toast";
+import { doc } from "firebase/firestore";
 import { placeholderImages } from "@/lib/placeholder-images";
-
-const userProfile: UserProfile = {
-    id: "1",
-    name: "Priya Sharma",
-    email: "priya@example.com",
-    city: "Mumbai",
-    phoneNumber: "+91 98765 43210",
-    profileVerified: true,
-    emergencyContact: "Rohan Sharma (+91 98765 12345)"
-};
 
 export default function ProfilePage() {
     const { toast } = useToast();
+    const { user } = useUser();
+    const firestore = useFirestore();
     const [isLoading, setIsLoading] = React.useState(false);
+
+    const userProfileRef = useMemoFirebase(
+        () => (user ? doc(firestore, "users", user.uid) : null),
+        [user, firestore]
+    );
+    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
     const handleProfileUpdate = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (!userProfileRef) return;
+
         setIsLoading(true);
+        const formData = new FormData(e.currentTarget);
+        const updatedProfile = {
+            name: formData.get("name") as string,
+            city: formData.get("city") as string,
+        };
+
+        updateDocumentNonBlocking(userProfileRef, updatedProfile);
+        
         toast({ title: "Profile update request sent!" });
         setTimeout(() => setIsLoading(false), 1000);
     }
 
     const handleSafetyUpdate = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (!userProfileRef) return;
         setIsLoading(true);
+
+        const formData = new FormData(e.currentTarget);
+        const emergencyName = formData.get("emergency-name") as string;
+        const emergencyPhone = formData.get("emergency-phone") as string;
+        
+        const updatedProfile = {
+            emergencyContact: `${emergencyName} (${emergencyPhone})`,
+        };
+        
+        updateDocumentNonBlocking(userProfileRef, updatedProfile);
+
         toast({ title: "Safety info update request sent!" });
         setTimeout(() => setIsLoading(false), 1000);
+    }
+
+    if (isProfileLoading) {
+        return <p>Loading profile...</p>;
+    }
+
+    if (!userProfile) {
+        return <p>No profile found.</p>;
     }
 
     return (
         <div className="grid gap-6 max-w-4xl mx-auto">
             <div className="flex flex-col items-center gap-4 md:flex-row">
                 <Avatar className="h-24 w-24">
-                    <AvatarImage src={placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={userProfile.name} />
+                    <AvatarImage src={user?.photoURL || placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={userProfile.name} />
                     <AvatarFallback>{userProfile.name?.substring(0, 2)}</AvatarFallback>
                 </Avatar>
                 <div className="text-center md:text-left">

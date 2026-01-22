@@ -1,7 +1,12 @@
+"use client";
+
 import { Logo } from "@/components/logo";
 import Link from "next/link";
 import Image from "next/image";
 import { placeholderImages } from "@/lib/placeholder-images";
+import { useUser } from "@/firebase";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function AuthLayout({
   children,
@@ -9,6 +14,23 @@ export default function AuthLayout({
   children: React.ReactNode;
 }>) {
   const authImage = placeholderImages.find(p => p.id === 'hero');
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || user) {
+     return (
+      <div className="flex h-screen items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
 
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:min-h-screen">

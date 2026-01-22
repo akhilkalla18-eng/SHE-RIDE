@@ -7,13 +7,37 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { useUser, useFirestore, addDocumentNonBlocking } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 export default function CreatePickupPage() {
     const { toast } = useToast();
     const router = useRouter();
+    const { user } = useUser();
+    const firestore = useFirestore();
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (!user) {
+            toast({ variant: "destructive", title: "You must be logged in to offer a ride." });
+            return;
+        }
+
+        const formData = new FormData(e.currentTarget);
+        const rideData = {
+            riderId: user.uid,
+            startingLocation: formData.get("start-location") as string,
+            destination: formData.get("destination") as string,
+            dateTime: new Date(`${formData.get("date")}T${formData.get("time")}`).toISOString(),
+            vehicleType: formData.get("vehicle-type") as string,
+            seatsAvailable: 1,
+            expectedCost: Number(formData.get("cost")) || 0,
+            routePreference: formData.get("route") as string,
+            status: 'open',
+        };
+        
+        const pickupRequestsRef = collection(firestore, `users/${user.uid}/pickup_requests`);
+        addDocumentNonBlocking(pickupRequestsRef, rideData);
         
         toast({
             title: "Pickup Request Created",

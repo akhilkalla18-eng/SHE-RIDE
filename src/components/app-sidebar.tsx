@@ -22,7 +22,9 @@ import {
   Users,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { type UserProfile } from "@/lib/schemas";
+import { useDoc, useMemoFirebase, useUser } from "@/firebase";
+import { doc, getFirestore } from "firebase/firestore";
+import { UserProfile } from "@/lib/schemas";
 import { placeholderImages } from "@/lib/placeholder-images";
 
 const menuItems = [
@@ -63,17 +65,17 @@ const menuItems = [
   },
 ];
 
-const userProfile: UserProfile = {
-  id: "1",
-  name: "Priya Sharma",
-  email: "priya@example.com",
-  city: "Mumbai",
-  phoneNumber: "+91 98765 43210",
-  profileVerified: true,
-};
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { user } = useUser();
+  const firestore = getFirestore();
+
+  const userProfileRef = useMemoFirebase(
+    () => (user ? doc(firestore, "users", user.uid) : null),
+    [user, firestore]
+  );
+  const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
 
   return (
     <Sidebar>
@@ -103,7 +105,7 @@ export function AppSidebar() {
         {userProfile && (
             <div className="flex items-center gap-3 p-2">
             <Avatar className="h-10 w-10">
-                <AvatarImage src={placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={userProfile.name} />
+                <AvatarImage src={user?.photoURL || placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={userProfile.name} />
                 <AvatarFallback>{userProfile.name?.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="overflow-hidden">

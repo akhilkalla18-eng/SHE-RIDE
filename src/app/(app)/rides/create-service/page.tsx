@@ -6,13 +6,36 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { useUser, useFirestore, addDocumentNonBlocking } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 export default function CreateServicePage() {
     const { toast } = useToast();
     const router = useRouter();
+    const { user } = useUser();
+    const firestore = useFirestore();
+
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (!user) {
+            toast({ variant: "destructive", title: "You must be logged in to request a ride." });
+            return;
+        }
+
+        const formData = new FormData(e.currentTarget);
+        const serviceData = {
+            passengerId: user.uid,
+            pickupLocation: formData.get("pickup-location") as string,
+            destination: formData.get("destination") as string,
+            dateTime: new Date(`${formData.get("date")}T${formData.get("time")}`).toISOString(),
+            maxAmount: Number(formData.get("max-amount")) || 0,
+            preferredRoute: formData.get("route") as string,
+            status: 'open',
+        };
+
+        const serviceRequestsRef = collection(firestore, `users/${user.uid}/service_requests`);
+        addDocumentNonBlocking(serviceRequestsRef, serviceData);
         
         toast({
             title: "Service Request Created",

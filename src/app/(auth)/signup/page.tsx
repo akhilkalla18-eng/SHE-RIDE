@@ -8,23 +8,62 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
+import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc } from "firebase/firestore";
+import { UserProfile } from "@/lib/schemas";
+
 
 export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const auth = useAuth();
+  const firestore = useFirestore();
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    toast({
-      title: "Account Created!",
-      description: "Welcome to SheRide. Please login.",
-    });
-    
-    // Simulate network request
-    setTimeout(() => router.push("/login"), 1000);
+
+    const formData = new FormData(e.currentTarget);
+    const fullName = formData.get("full-name") as string;
+    const email = formData.get("email") as string;
+    const phone = formData.get("phone") as string;
+    const city = formData.get("city") as string;
+    const password = formData.get("password") as string;
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        await updateProfile(user, { displayName: fullName });
+
+        const userProfile: Omit<UserProfile, 'id'> = {
+            name: fullName,
+            email: user.email!,
+            phoneNumber: phone,
+            city: city,
+            profileVerified: false,
+        };
+        
+        const userDocRef = doc(firestore, "users", user.uid);
+        setDocumentNonBlocking(userDocRef, userProfile, { merge: true });
+
+        toast({
+          title: "Account Created!",
+          description: "Welcome to SheRide. You'll be redirected.",
+        });
+        
+        router.push("/dashboard");
+
+    } catch(error: any) {
+        toast({
+            variant: "destructive",
+            title: "Signup Failed",
+            description: error.message,
+        });
+        setIsLoading(false);
+    }
   };
 
   return (
