@@ -28,26 +28,21 @@ import Link from "next/link"
 import { Bell, LifeBuoy, LogOut, TriangleAlert } from "lucide-react"
 import { notifications } from "@/lib/data"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth, useUser, addDocumentNonBlocking, useFirestore } from "@/firebase"
-import { signOut } from "firebase/auth"
-import { collection } from "firebase/firestore"
 import { placeholderImages } from "@/lib/placeholder-images"
+import { useRouter } from "next/navigation"
+
+const user = {
+    photoURL: placeholderImages.find(p => p.id === 'avatar1')?.imageUrl,
+    displayName: "Priya",
+    email: "priya@example.com"
+};
+
 
 export function AppHeader() {
     const { toast } = useToast()
-    const auth = useAuth();
-    const { user } = useUser();
-    const firestore = useFirestore();
+    const router = useRouter();
 
     const handleSosClick = () => {
-        if (!user) return;
-        const alertsRef = collection(firestore, "sos_alerts");
-        addDocumentNonBlocking(alertsRef, {
-            userId: user.uid,
-            timestamp: new Date().toISOString(),
-            location: "User's current location" // This would be replaced with actual location services
-        });
-
         toast({
             title: "SOS Alert Sent",
             description: "Your emergency contacts and our support team have been notified.",
@@ -55,7 +50,11 @@ export function AppHeader() {
         })
     }
     const handleLogout = () => {
-        signOut(auth);
+        toast({
+            title: "Logged Out",
+            description: "You have been successfully logged out.",
+        });
+        router.push("/login");
     }
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30 bg-background/80 backdrop-blur-sm">
@@ -115,7 +114,7 @@ export function AppHeader() {
         <DropdownMenuTrigger asChild>
           <Button variant="secondary" size="icon" className="rounded-full">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.photoURL || placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={user?.displayName || "User"} />
+              <AvatarImage src={user?.photoURL} alt={user?.displayName || "User"} />
               <AvatarFallback>{user?.displayName?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
             </Avatar>
             <span className="sr-only">Toggle user menu</span>

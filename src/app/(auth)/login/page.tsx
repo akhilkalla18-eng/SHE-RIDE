@@ -7,37 +7,24 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link"
 import { useRouter } from "next/navigation";
 import React from "react";
-import { useAuth } from "@/firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const auth = useAuth();
   const [isLoading, setIsLoading] = React.useState(false);
-  const [email, setEmail] = React.useState("priya@example.com");
-  const [password, setPassword] = React.useState("password");
 
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       setIsLoading(true);
       
-      signInWithEmailAndPassword(auth, email, password)
-        .then((userCredential) => {
-            toast({
-                title: "Login Successful!",
-                description: "You'll be redirected to your dashboard.",
-            });
-            router.push("/dashboard");
-        })
-        .catch((error) => {
-            toast({
-                variant: "destructive",
-                title: "Login Failed",
-                description: error.message,
-            });
-            setIsLoading(false);
+      // Simulate API call
+      setTimeout(() => {
+        toast({
+            title: "Login Successful!",
+            description: "You'll be redirected to your dashboard.",
         });
+        router.push("/dashboard");
+      }, 1000);
   };
 
   return (
@@ -51,8 +38,7 @@ export default function LoginPage() {
             type="email"
             placeholder="priya@example.com"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            defaultValue="priya@example.com"
           />
         </div>
         <div className="grid gap-2">
@@ -65,7 +51,7 @@ export default function LoginPage() {
               Forgot your password?
             </Link>
           </div>
-          <Input id="password" name="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Input id="password" name="password" type="password" required defaultValue="password" />
         </div>
         <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Logging in..." : "Login"}

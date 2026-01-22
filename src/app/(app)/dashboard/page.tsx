@@ -33,10 +33,11 @@ import {
 } from "recharts"
 import React, { useState, useEffect } from "react"
 import { placeholderImages } from "@/lib/placeholder-images"
-import { notifications } from "@/lib/data"
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
-import { collection, query, where } from "firebase/firestore"
 import { Ride } from "@/lib/schemas"
+
+const user = {
+    displayName: "Priya"
+};
 
 const suggestionsWithUsers = [
     { id: 's1', type: 'pickup', startingLocation: 'Juhu, Mumbai', destination: 'Powai, Mumbai', dateTime: '2024-08-16T18:00:00.000Z', user: { name: 'Sunita' } },
@@ -44,17 +45,12 @@ const suggestionsWithUsers = [
     { id: 's3', type: 'pickup', startingLocation: 'Dadar', destination: 'Lower Parel', dateTime: '2024-08-18T14:00:00.000Z', user: { name: 'Geeta' } },
 ];
 
+const upcomingRides: Partial<Ride>[] = [
+    { id: 'r1', participantIds: ['user1', 'user2'], dateTime: '2024-08-20T10:00:00.000Z'},
+];
+
 export default function Dashboard() {
   const [chartData, setChartData] = useState<any[]>([]);
-  const { user } = useUser();
-  const firestore = useFirestore();
-
-  const ridesQuery = useMemoFirebase(
-    () => user ? query(collection(firestore, 'rides'), where('participantIds', 'array-contains', user.uid)) : null,
-    [user, firestore]
-  );
-  const { data: upcomingRides } = useCollection<Ride>(ridesQuery);
-
 
   useEffect(() => {
     setChartData([
@@ -135,7 +131,7 @@ export default function Dashboard() {
               <div className="grid gap-2">
                 <CardTitle>New Ride Suggestions</CardTitle>
                 <CardDescription>
-                  Women traveling on similar routes. Fetching all ride requests is not yet implemented.
+                  Women traveling on similar routes.
                 </CardDescription>
               </div>
               <Button asChild size="sm" className="ml-auto gap-1">

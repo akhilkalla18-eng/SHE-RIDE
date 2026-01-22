@@ -22,8 +22,6 @@ import {
   Users,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { useDoc, useMemoFirebase, useUser } from "@/firebase";
-import { doc, getFirestore } from "firebase/firestore";
 import { UserProfile } from "@/lib/schemas";
 import { placeholderImages } from "@/lib/placeholder-images";
 
@@ -65,17 +63,20 @@ const menuItems = [
   },
 ];
 
+const user = {
+    photoURL: placeholderImages.find(p => p.id === 'avatar1')?.imageUrl,
+};
+
+const userProfile: UserProfile = {
+    id: "1",
+    name: "Priya Sharma",
+    city: "Mumbai",
+    email: "priya@example.com",
+    phoneNumber: "+91 9876543210"
+};
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { user } = useUser();
-  const firestore = getFirestore();
-
-  const userProfileRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid) : null),
-    [user, firestore]
-  );
-  const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
 
   return (
     <Sidebar>
@@ -105,7 +106,7 @@ export function AppSidebar() {
         {userProfile && (
             <div className="flex items-center gap-3 p-2">
             <Avatar className="h-10 w-10">
-                <AvatarImage src={user?.photoURL || placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt={userProfile.name} />
+                <AvatarImage src={user?.photoURL} alt={userProfile.name} />
                 <AvatarFallback>{userProfile.name?.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="overflow-hidden">

@@ -3,7 +3,6 @@ import { Toaster } from "@/components/ui/toaster"
 import './globals.css';
 import { Belleza, Alegreya } from 'next/font/google';
 import { cn } from '@/lib/utils';
-import { FirebaseClientProvider } from '@/firebase';
 
 const fontBelleza = Belleza({
   subsets: ["latin"],
@@ -33,9 +32,7 @@ export default function RootLayout({
         fontBelleza.variable,
         fontAlegreya.variable
       )}>
-        <FirebaseClientProvider>
-          {children}
-        </FirebaseClientProvider>
+        {children}
         <Toaster />
       </body>
     </html>
