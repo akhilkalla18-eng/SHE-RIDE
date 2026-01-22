@@ -1,0 +1,186 @@
+/**
+ * Core Philosophy: This ruleset is designed for the SheRide application, a women-only ride-sharing platform.
+ * The primary security goal is to ensure user privacy and safety. The model is built on strict user-ownership
+ * of personal data and requests, with a closed collaborator model for shared activities like rides and chats.
+ *
+ * Data Structure: The data is organized to logically separate private user data from shared, transactional data.
+ * - /users/{userId}: Each user has a root document for their profile. All private, user-specific data
+ *   (like ride requests) is stored in subcollections under this path.
+ * - /rides/{rideId}: A top-level collection for confirmed rides shared between two users.
+ * - /chats/{chatId}: A top-level collection for private conversations between users.
+ * - /sos_alerts/{sosAlertId}: A top-level collection for write-only emergency alerts.
+ *
+ * Key Security Decisions:
+ * - User Privacy: Listing the top-level /users collection is disallowed to prevent enumerating the user base.
+ *   Users can only access their own profile and associated data.
+ * - Shared Data Access: Access to shared documents (rides, chats) is controlled by an array of participant
+ *   UIDs stored directly on the document, ensuring only involved parties can view or modify the data.
+ * - Write-Only Alerts: SOS alerts are designed to be write-only from the client. This allows any user to
+ *   log an emergency alert, which can then be securely processed by a backend service without exposing
+ *   sensitive alert data to other clients.
+ * - Prototyping Flexibility: These rules strictly enforce authorization (who can access what) but do not
+ *   enforce the specific shape or data types of documents, allowing for rapid front-end development and iteration.
+ *
+ * Denormalization for Authorization: To ensure fast and secure authorization, data is denormalized. For example,
+ * /chats/{chatId} and /rides/{rideId} documents contain an array of participant UIDs. This avoids slow and
+ * costly `get()` calls in security rules and makes the authorization logic simple and performant.
+ *
+ * Structural Segregation: User-owned data (profiles, requests) is segregated into a user-specific path
+ * (`/users/{userId}/...`), while collaborative data (`/rides`, `/chats`) is in separate top-level collections.
+ * This separation provides a clear and secure boundary between private and shared information.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for reusable logic
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the authenticated user's ID matches the provided userId from the path.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    /**
+     * Verifies that a document exists before an update or delete operation.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+    /**
+     * A robust check for update/delete, ensuring the user is the owner AND the document exists.
+     */
+    function isOwnerOfExistingDoc(userId) {
+      return isOwner(userId) && isExistingDoc();
+    }
+
+    /**
+     * Checks if the user is a participant in a shared document (e.g., chat, ride).
+     * Assumes the document data has a 'userProfileIds' array.
+     */
+    function isParticipant(doc) {
+      return isSignedIn() && request.auth.uid in doc.data.userProfileIds;
+    }
+
+    /**
+     * On create, validates that the user's auth UID is present in the new document's participant list.
+     */
+    function isCreatingAsParticipant() {
+      return isSignedIn() && request.auth.uid in request.resource.data.userProfileIds;
+    }
+
+    /**
+     * On update, ensures that the creatorId field is immutable.
+     */
+    function isCreatorImmutable() {
+      return request.resource.data.userProfileId == resource.data.userProfileId;
+    }
+
+    /**
+     * On create, validates that the document's internal userProfileId matches the user's auth ID.
+     */
+    function isCreatingOwnedDoc() {
+      return isSignedIn() && request.resource.data.userProfileId == request.auth.uid;
+    }
+
+    /**
+     * @description Rules for UserProfile documents.
+     * @path /users/{userId}
+     * @allow (create) An authenticated user creating their own profile document for the first time.
+     * @deny (get) An authenticated user trying to read another user's profile.
+     * @principle Enforces Self-Creation and strict document ownership. A user has full control over their own profile but no access to others'.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if isOwnerOfExistingDoc(userId);
+      allow delete: if isOwnerOfExistingDoc(userId);
+
+      /**
+       * @description Rules for a user's collection of pickup requests.
+       * @path /users/{userId}/pickup_requests/{pickupRequestId}
+       * @allow (create) An authenticated user creating a pickup request for themselves.
+       * @deny (list) A user trying to list another user's pickup requests.
+       * @principle Restricts access to a user's own data tree and validates relational integrity.
+       */
+      match /pickup_requests/{pickupRequestId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
+        allow update: if isOwnerOfExistingDoc(userId) && isCreatorImmutable();
+        allow delete: if isOwnerOfExistingDoc(userId);
+      }
+
+      /**
+       * @description Rules for a user's collection of service requests.
+       * @path /users/{userId}/service_requests/{serviceRequestId}
+       * @allow (create) An authenticated user creating a service request for themselves.
+       * @deny (update) A user trying to update another user's service request.
+       * @principle Restricts access to a user's own data tree and validates relational integrity.
+       */
+      match /service_requests/{serviceRequestId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
+        allow update: if isOwnerOfExistingDoc(userId) && isCreatorImmutable();
+        allow delete: if isOwnerOfExistingDoc(userId);
+      }
+    }
+
+    /**
+     * @description Rules for Ride documents, which are shared between participants.
+     * @path /rides/{rideId}
+     * @allow (get) A user who is a participant in the ride, reading the ride details.
+     * @deny (get) A user trying to read the details of a ride they are not a part of.
+     * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'userProfileIds' array.
+     */
+    match /rides/{rideId} {
+      // NOTE: These rules assume the 'Ride' document contains a 'userProfileIds' array field with the UIDs of all participants.
+      // This denormalized field is CRITICAL for these rules to function correctly.
+      allow get: if isParticipant(resource);
+      allow list: if false; // Disallow listing all rides for privacy.
+      allow create: if isCreatingAsParticipant();
+      allow update: if isParticipant(resource) && isExistingDoc();
+      allow delete: if isParticipant(resource) && isExistingDoc();
+    }
+
+    /**
+     * @description Rules for Chat documents, which are private conversations between users.
+     * @path /chats/{chatId}
+     * @allow (get) A user who is a participant in the chat, reading the conversation.
+     * @deny (update) A user trying to modify a chat conversation they are not a part of.
+     * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'userProfileIds' array.
+     */
+    match /chats/{chatId} {
+      allow get: if isParticipant(resource);
+      allow list: if false; // Disallow listing all chats for privacy.
+      allow create: if isCreatingAsParticipant();
+      allow update: if isParticipant(resource) && isExistingDoc();
+      allow delete: if isParticipant(resource) && isExistingDoc();
+    }
+
+    /**
+     * @description Rules for SOS Alerts. These are write-only from the client.
+     * @path /sos_alerts/{sosAlertId}
+     * @allow (create) An authenticated user creating an SOS alert for themselves during an emergency.
+     * @deny (get, list, update, delete) Any client-side read or modification after creation is forbidden to ensure data integrity.
+     * @principle Enforces a "write-only" pattern for critical events. The client can log an alert, but only a trusted backend service can read or process it.
+     */
+    match /sos_alerts/{sosAlertId} {
+      allow get: if false;
+      allow list: if false;
+      allow create: if isCreatingOwnedDoc();
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

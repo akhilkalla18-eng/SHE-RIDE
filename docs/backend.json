@@ -1,0 +1,370 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user profile in the SheRide application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user profile."
+        },
+        "name": {
+          "type": "string",
+          "description": "User's full name."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "User's phone number, used for OTP verification."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "city": {
+          "type": "string",
+          "description": "User's city of residence."
+        },
+        "aadhaarId": {
+          "type": "string",
+          "description": "User's Aadhaar ID (optional)."
+        },
+        "collegeId": {
+          "type": "string",
+          "description": "User's College ID (optional)."
+        },
+        "profileVerified": {
+          "type": "boolean",
+          "description": "Indicates whether the user's profile has been verified by an admin."
+        },
+        "emergencyContact": {
+          "type": "string",
+          "description": "User's emergency contact information."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "phoneNumber",
+        "email",
+        "city"
+      ]
+    },
+    "PickupRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PickupRequest",
+      "type": "object",
+      "description": "Represents a pickup request created by a rider (Woman X).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the pickup request."
+        },
+        "userProfileId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N PickupRequest) The ID of the user who created the request."
+        },
+        "startingLocation": {
+          "type": "string",
+          "description": "Starting location of the ride."
+        },
+        "destination": {
+          "type": "string",
+          "description": "Destination of the ride."
+        },
+        "dateTime": {
+          "type": "string",
+          "description": "Date and time of the ride.",
+          "format": "date-time"
+        },
+        "vehicleType": {
+          "type": "string",
+          "description": "Type of vehicle (Bike / Scooty)."
+        },
+        "seatsAvailable": {
+          "type": "number",
+          "description": "Number of seats available (default 1)."
+        },
+        "expectedCost": {
+          "type": "number",
+          "description": "Expected cost of the ride (optional)."
+        },
+        "routePreference": {
+          "type": "string",
+          "description": "Rider's preferred route."
+        }
+      },
+      "required": [
+        "id",
+        "userProfileId",
+        "startingLocation",
+        "destination",
+        "dateTime",
+        "vehicleType",
+        "seatsAvailable"
+      ]
+    },
+    "ServiceRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ServiceRequest",
+      "type": "object",
+      "description": "Represents a service request created by a passenger (Woman Y).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the service request."
+        },
+        "userProfileId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N ServiceRequest) The ID of the user who created the request."
+        },
+        "pickupLocation": {
+          "type": "string",
+          "description": "Pickup location for the service."
+        },
+        "destination": {
+          "type": "string",
+          "description": "Destination for the service."
+        },
+        "dateTime": {
+          "type": "string",
+          "description": "Date and time of the service.",
+          "format": "date-time"
+        },
+        "maxAmountWillingToPay": {
+          "type": "number",
+          "description": "Maximum amount the passenger is willing to pay."
+        },
+        "preferredRoute": {
+          "type": "string",
+          "description": "Passenger's preferred route."
+        }
+      },
+      "required": [
+        "id",
+        "userProfileId",
+        "pickupLocation",
+        "destination",
+        "dateTime",
+        "maxAmountWillingToPay"
+      ]
+    },
+    "Ride": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Ride",
+      "type": "object",
+      "description": "Represents a confirmed ride between a rider and a passenger.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ride."
+        },
+        "pickupRequestId": {
+          "type": "string",
+          "description": "Reference to PickupRequest. (Relationship: PickupRequest 1:1 Ride) The ID of the associated pickup request."
+        },
+        "serviceRequestId": {
+          "type": "string",
+          "description": "Reference to ServiceRequest. (Relationship: ServiceRequest 1:1 Ride) The ID of the associated service request."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the ride (Requested, Accepted, Confirmed, Completed, Cancelled)."
+        },
+        "sharedCost": {
+          "type": "number",
+          "description": "The agreed-upon shared cost for the ride."
+        }
+      },
+      "required": [
+        "id",
+        "pickupRequestId",
+        "serviceRequestId",
+        "status"
+      ]
+    },
+    "Chat": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chat",
+      "type": "object",
+      "description": "Represents a chat conversation between two users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the chat."
+        },
+        "userProfileIds": {
+          "type": "array",
+          "description": "References to UserProfiles. (Relationship: UserProfile N:N Chat) The IDs of the users involved in the chat.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "messages": {
+          "type": "array",
+          "description": "Array of chat messages.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "userProfileIds"
+      ]
+    },
+    "SosAlert": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SosAlert",
+      "type": "object",
+      "description": "Represents an SOS alert triggered by a user during a ride.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SOS alert."
+        },
+        "userProfileId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N SosAlert) The ID of the user who triggered the alert."
+        },
+        "rideId": {
+          "type": "string",
+          "description": "Reference to Ride. (Relationship: Ride 1:1 SosAlert) The ID of the ride during which the alert was triggered."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of when the alert was triggered.",
+          "format": "date-time"
+        },
+        "location": {
+          "type": "string",
+          "description": "Location of the user when the alert was triggered."
+        }
+      },
+      "required": [
+        "id",
+        "userProfileId",
+        "rideId",
+        "timestamp",
+        "location"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile data. Only the authenticated user can access their own profile.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/pickup_requests/{pickupRequestId}",
+        "definition": {
+          "entityName": "PickupRequest",
+          "schema": {
+            "$ref": "#/backend/entities/PickupRequest"
+          },
+          "description": "Stores pickup requests created by a user. Enforces ownership, allowing easy retrieval of a user's pickup requests.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user creating the pickup request."
+            },
+            {
+              "name": "pickupRequestId",
+              "description": "The unique ID of the pickup request."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/service_requests/{serviceRequestId}",
+        "definition": {
+          "entityName": "ServiceRequest",
+          "schema": {
+            "$ref": "#/backend/entities/ServiceRequest"
+          },
+          "description": "Stores service requests created by a user. Enforces ownership, allowing easy retrieval of a user's service requests.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user creating the service request."
+            },
+            {
+              "name": "serviceRequestId",
+              "description": "The unique ID of the service request."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/rides/{rideId}",
+        "definition": {
+          "entityName": "Ride",
+          "schema": {
+            "$ref": "#/backend/entities/Ride"
+          },
+          "description": "Stores confirmed ride information. Includes references to both PickupRequest and ServiceRequest IDs. Denormalizes the userProfileId from the related PickupRequest and ServiceRequest for authorization.",
+          "params": [
+            {
+              "name": "rideId",
+              "description": "The unique ID of the ride."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/chats/{chatId}",
+        "definition": {
+          "entityName": "Chat",
+          "schema": {
+            "$ref": "#/backend/entities/Chat"
+          },
+          "description": "Stores chat conversations between two users. Includes a userProfileIds array to list the involved user IDs, enabling security rules.",
+          "params": [
+            {
+              "name": "chatId",
+              "description": "The unique ID of the chat."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/sos_alerts/{sosAlertId}",
+        "definition": {
+          "entityName": "SosAlert",
+          "schema": {
+            "$ref": "#/backend/entities/SosAlert"
+          },
+          "description": "Stores SOS alerts triggered by users during rides. Includes the userProfileId to indicate who triggered the alert and the rideId to link it to the ride.",
+          "params": [
+            {
+              "name": "sosAlertId",
+              "description": "The unique ID of the SOS alert."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support SheRide's women-only ride-pairing platform, prioritizing safety, security, and a non-commercial community-based approach. The design adheres to the core principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. Authorization Independence is achieved by denormalizing user profile information into the `PickupRequest`, `ServiceRequest`, and `Ride` documents, thus avoiding the need for `get()` calls in security rules. Structural Segregation is applied by storing user profiles separately and organizing ride-related data into collections that reflect the relationships between users, requests, and rides. Access Modeling is implemented using path-based ownership for user profiles and collaborative data models where needed.\n\nSpecifically:\n\n*   `/users/{userId}`: Stores user profile data. Security rules ensure that only the authenticated user can access their own profile.\n*   `/users/{userId}/pickup_requests/{pickupRequestId}`: Stores pickup requests created by a user. This structure enforces ownership and allows easy retrieval of a user's pickup requests.\n*   `/users/{userId}/service_requests/{serviceRequestId}`: Stores service requests created by a user. This structure enforces ownership and allows easy retrieval of a user's service requests.\n*   `/rides/{rideId}`: Stores confirmed ride information. Includes references to both `PickupRequest` and `ServiceRequest` IDs.  The `Ride` document should also denormalize the `userProfileId` from the related `PickupRequest` and `ServiceRequest` to enable security rules based on the involved users.\n*   `/chats/{chatId}`: Stores chat conversations between two users.  The `Chat` document should include a `userProfileIds` array to list the involved user IDs, which enables security rules to verify that only the participating users can access the chat.\n*   `/sos_alerts/{sosAlertId}`: Stores SOS alerts triggered by users during rides.  The `SosAlert` document should include the `userProfileId` to indicate who triggered the alert, and the `rideId` to link it to the specific ride. The `userProfileId` enables security rules to ensure that appropriate actions are taken based on the user's emergency.\n\nThis structure supports the required QAPs because list operations can be securely implemented by ensuring the user is the owner of the documents in path-based collections (e.g., listing `/users/{userId}/pickup_requests`).  For collaborative data, security rules can enforce that only members of the `userProfileIds` array in `chats` collection have read/write access."
+  }
+}
