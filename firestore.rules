@@ -64,17 +64,17 @@ service cloud.firestore {
 
     /**
      * Checks if the user is a participant in a shared document (e.g., chat, ride).
-     * Assumes the document data has a 'userProfileIds' array.
+     * Assumes the document data has a 'participantIds' array.
      */
     function isParticipant(doc) {
-      return isSignedIn() && request.auth.uid in doc.data.userProfileIds;
+      return isSignedIn() && request.auth.uid in doc.data.participantIds;
     }
 
     /**
      * On create, validates that the user's auth UID is present in the new document's participant list.
      */
     function isCreatingAsParticipant() {
-      return isSignedIn() && request.auth.uid in request.resource.data.userProfileIds;
+      return isSignedIn() && request.auth.uid in request.resource.data.participantIds;
     }
 
     /**
@@ -141,13 +141,15 @@ service cloud.firestore {
      * @path /rides/{rideId}
      * @allow (get) A user who is a participant in the ride, reading the ride details.
      * @deny (get) A user trying to read the details of a ride they are not a part of.
-     * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'userProfileIds' array.
+     * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'participantIds' array.
      */
     match /rides/{rideId} {
-      // NOTE: These rules assume the 'Ride' document contains a 'userProfileIds' array field with the UIDs of all participants.
+      // NOTE: These rules assume the 'Ride' document contains a 'participantIds' array field with the UIDs of all participants.
       // This denormalized field is CRITICAL for these rules to function correctly.
       allow get: if isParticipant(resource);
-      allow list: if false; // Disallow listing all rides for privacy.
+      // Allow a user to query for rides they are a participant in.
+      // This enforces that any 'list' query on this collection MUST include a `where('participantIds', 'array-contains', request.auth.uid)` clause.
+      allow list: if isSignedIn() && request.auth.uid in request.query.where.get('participantIds', []);
       allow create: if isCreatingAsParticipant();
       allow update: if isParticipant(resource) && isExistingDoc();
       allow delete: if isParticipant(resource) && isExistingDoc();
@@ -158,11 +160,11 @@ service cloud.firestore {
      * @path /chats/{chatId}
      * @allow (get) A user who is a participant in the chat, reading the conversation.
      * @deny (update) A user trying to modify a chat conversation they are not a part of.
-     * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'userProfileIds' array.
+     * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'participantIds' array.
      */
     match /chats/{chatId} {
       allow get: if isParticipant(resource);
-      allow list: if false; // Disallow listing all chats for privacy.
+      allow list: if isSignedIn() && request.auth.uid in request.query.where.get('participantIds', []);
       allow create: if isCreatingAsParticipant();
       allow update: if isParticipant(resource) && isExistingDoc();
       allow delete: if isParticipant(resource) && isExistingDoc();
