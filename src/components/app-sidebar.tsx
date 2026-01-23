@@ -1,6 +1,8 @@
+
 "use client";
 
 import Link from "next/link";
+import React from "react";
 import { usePathname } from "next/navigation";
 import {
   Sidebar,
@@ -23,7 +25,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import type { UserProfile } from "@/lib/schemas";
-import { useUser, useDoc, useMemoFirebase, useFirestore } from "@/firebase";
+import { useUser, useDoc, useFirestore } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { Skeleton } from "./ui/skeleton";
 
@@ -70,7 +72,7 @@ export function AppSidebar() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
-  const userProfileRef = useMemoFirebase(() => {
+  const userProfileRef = React.useMemo(() => {
     if (!user || !firestore) return null;
     return doc(firestore, "users", user.uid);
   }, [firestore, user]);

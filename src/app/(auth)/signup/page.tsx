@@ -57,10 +57,11 @@ export default function SignupPage() {
             drivingLicenseUrl = await getDownloadURL(uploadTask.ref);
         } catch (uploadError) {
             console.error("File upload failed during signup:", uploadError);
+            const errorMessage = uploadError instanceof Error ? uploadError.message : "Could not upload ID.";
             toast({
                 variant: "destructive",
                 title: "ID Upload Failed",
-                description: "Your account was created, but the ID upload failed. You can try again from your profile.",
+                description: `Your account was created, but ID upload failed. You can add it later from your profile. Error: ${errorMessage}`,
             });
         }
       }
@@ -73,6 +74,7 @@ export default function SignupPage() {
         city,
         profileVerified: false,
         drivingLicenseId: drivingLicenseUrl,
+        emergencyContact: "",
       };
 
       const userDocRef = doc(firestore, "users", user.uid);

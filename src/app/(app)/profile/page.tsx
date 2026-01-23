@@ -11,7 +11,7 @@ import { UserProfile } from "@/lib/schemas";
 import { CheckCircle, Shield } from "lucide-react";
 import React from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useDoc, useMemoFirebase, useStorage } from "@/firebase";
+import { useUser, useFirestore, useDoc, useStorage } from "@/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,7 +26,7 @@ export default function ProfilePage() {
     const [fileToUpload, setFileToUpload] = React.useState<File | null>(null);
     const [isUploading, setIsUploading] = React.useState(false);
 
-    const userProfileRef = useMemoFirebase(() => {
+    const userProfileRef = React.useMemo(() => {
         if (!user || !firestore) return null;
         return doc(firestore, "users", user.uid);
     }, [firestore, user]);
@@ -105,10 +105,11 @@ export default function ProfilePage() {
 
         } catch (error) {
             console.error("File upload error:", error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
             toast({
                 variant: "destructive",
                 title: "Upload Failed",
-                description: "There was an error uploading your document. Please check your storage permissions and try again.",
+                description: `Could not upload document: ${errorMessage}`,
             });
         } finally {
             setIsUploading(false);

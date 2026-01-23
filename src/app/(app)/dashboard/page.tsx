@@ -2,6 +2,7 @@
 "use client"
 
 import Link from "next/link"
+import React from "react"
 import {
   Activity,
   ArrowUpRight,
@@ -16,7 +17,6 @@ import {
     XAxis,
     YAxis,
   } from "recharts"
-import React from "react"
 import { doc, collection, query, where } from "firebase/firestore"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { useUser, useFirestore, useDoc, useCollection } from "@/firebase"
 import type { UserProfile, Ride, PickupRequest, ServiceRequest } from "@/lib/schemas"
 import { placeholderImages } from "@/lib/placeholder-images"
 
@@ -56,38 +56,38 @@ export default function Dashboard() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
-    const userProfileRef = useMemoFirebase(() => {
+    const userProfileRef = React.useMemo(() => {
         if (!user || !firestore) return null;
         return doc(firestore, "users", user.uid);
     }, [firestore, user]);
 
     const { data: profile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
-    const ridesQuery = useMemoFirebase(() => {
+    const ridesQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
         return query(collection(firestore, "rides"), where("participantIds", "array-contains", user.uid));
     }, [firestore, user]);
 
     const { data: rides, isLoading: areRidesLoading } = useCollection<Ride>(ridesQuery);
 
-    const pickupRequestsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "pickupRequests"), where("status", "==", "open"));
-    }, [firestore]);
+    const pickupRequestsQuery = React.useMemo(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, "pickupRequests"), where("userProfileId", "!=", user.uid), where("status", "==", "open"));
+    }, [firestore, user]);
     const {data: pickupRequests, isLoading: arePickupsLoading} = useCollection<PickupRequest>(pickupRequestsQuery);
 
-    const serviceRequestsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "serviceRequests"), where("status", "==", "open"));
-    }, [firestore]);
+    const serviceRequestsQuery = React.useMemo(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, "serviceRequests"), where("userProfileId", "!=", user.uid), where("status", "==", "open"));
+    }, [firestore, user]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
     
     const upcomingRides = React.useMemo(() => rides?.filter(r => r.status === 'confirmed' || r.status === 'accepted') || [], [rides]);
     const completedRidesCount = React.useMemo(() => rides?.filter(r => r.status === 'completed').length || 0, [rides]);
     const newSuggestionsCount = React.useMemo(() => {
         if(!user) return 0;
-        const pickups = pickupRequests?.filter(p => p.userProfileId !== user.uid).length || 0;
-        const services = serviceRequests?.filter(s => s.userProfileId !== user.uid).length || 0;
+        const pickups = pickupRequests?.length || 0;
+        const services = serviceRequests?.length || 0;
         return pickups + services;
     }, [pickupRequests, serviceRequests, user]);
 

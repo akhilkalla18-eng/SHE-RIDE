@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -5,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase";
+import { useUser, useFirestore, useCollection, useDoc } from "@/firebase";
 import { placeholderImages } from "@/lib/placeholder-images";
 import { UserProfile, PickupRequest, ServiceRequest } from "@/lib/schemas";
 import { ArrowRight, Bike, Search, User } from "lucide-react";
@@ -43,16 +44,16 @@ export default function SuggestionsPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
-    const pickupRequestsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "pickupRequests"), where("status", "==", "open"));
-    }, [firestore]);
+    const pickupRequestsQuery = React.useMemo(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, "pickupRequests"), where("userProfileId", "!=", user.uid), where("status", "==", "open"));
+    }, [firestore, user]);
     const {data: pickupRequests, isLoading: arePickupsLoading} = useCollection<PickupRequest>(pickupRequestsQuery);
 
-    const serviceRequestsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "serviceRequests"), where("status", "==", "open"));
-    }, [firestore]);
+    const serviceRequestsQuery = React.useMemo(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, "serviceRequests"), where("userProfileId", "!=", user.uid), where("status", "==", "open"));
+    }, [firestore, user]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
 
     const suggestions = React.useMemo(() => {
@@ -64,9 +65,8 @@ export default function SuggestionsPage() {
         ];
 
         return combined
-            .filter(r => r.userProfileId !== user.uid)
             // @ts-ignore
-            .sort((a, b) => new Date(b.createdAt?.toDate() || 0) - new Date(a.createdAt?.toDate() || 0));
+            .sort((a, b) => new Date(b.createdAt?.toDate?.() || 0) - new Date(a.createdAt?.toDate?.() || 0));
 
     }, [pickupRequests, serviceRequests, user]);
 
@@ -99,7 +99,7 @@ export default function SuggestionsPage() {
 
 function SuggestionCard({ ride }: { ride: CombinedRequest }) {
     const firestore = useFirestore();
-    const userProfileRef = useMemoFirebase(() => {
+    const userProfileRef = React.useMemo(() => {
         if (!firestore) return null;
         return doc(firestore, 'users', ride.userProfileId);
     }, [firestore, ride.userProfileId]);
@@ -117,7 +117,7 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
                         <Avatar className="h-12 w-12">
                             {isLoading ? <Skeleton className="h-full w-full rounded-full" /> : 
                             <>
-                                <AvatarImage src={(placeholderImages.find(p=>p.id === 'avatar2')?.imageUrl)} />
+                                <AvatarImage src={(userProfile as any)?.photoURL || placeholderImages.find(p=>p.id === 'avatar2')?.imageUrl} />
                                 <AvatarFallback>{userProfile?.name?.charAt(0)}</AvatarFallback>
                             </>
                             }

@@ -1,5 +1,7 @@
+
 "use client"
 
+import React from "react"
 import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
@@ -29,7 +31,7 @@ import { Bell, LifeBuoy, LogOut, TriangleAlert, User } from "lucide-react"
 import { notifications } from "@/lib/data"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from "@/firebase";
+import { useUser, useAuth, useDoc, useFirestore } from "@/firebase";
 import { signOut } from "firebase/auth";
 import { doc } from "firebase/firestore";
 import type { UserProfile } from "@/lib/schemas";
@@ -42,7 +44,7 @@ export function AppHeader() {
     const auth = useAuth();
     const firestore = useFirestore();
 
-    const userProfileRef = useMemoFirebase(() => {
+    const userProfileRef = React.useMemo(() => {
         if (!user || !firestore) return null;
         return doc(firestore, "users", user.uid);
     }, [firestore, user]);
