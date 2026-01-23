@@ -14,32 +14,41 @@ service cloud.firestore {
     }
     
     function isCreatingOwnedDoc() {
-      // Ensure the document being created has a userProfileId matching the requester's UID.
+      // For collections where docs have a 'userProfileId' field.
       return isSignedIn() && request.resource.data.userProfileId == request.auth.uid;
     }
     
     function isOwnerOfExistingDoc() {
-      // Ensure the existing document's userProfileId matches the requester's UID.
+      // For collections where docs have a 'userProfileId' field.
       return isSignedIn() && resource.data.userProfileId == request.auth.uid;
     }
-    
-    function isParticipant(doc) {
-      return isSignedIn() && 
-             'participantIds' in doc.data &&
-             doc.data.participantIds is list &&
-             request.auth.uid in doc.data.participantIds;
+
+    function isParticipantInNewDoc() {
+      // Check if the requesting user is part of the participant list in a NEW document
+      return isSignedIn() && request.resource.data.participantIds is list && request.auth.uid in request.resource.data.participantIds;
+    }
+
+    function isParticipantInExistingDoc() {
+      // Check if the requesting user is part of the participant list in an EXISTING document
+      return isSignedIn() && resource.data.participantIds is list && request.auth.uid in resource.data.participantIds;
     }
 
     // --- Collection Rules ---
 
-    // User Profiles: Only the owner can read or write their own profile.
+    // User Profiles:
+    // A user can create their own profile.
+    // They can only read and update their own profile.
+    // They cannot delete their profile from the client.
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow read, update: if isOwner(userId);
+      allow delete: if false;
     }
 
     // Pickup & Service Requests:
-    // Any authenticated user can read all requests (for suggestions page)
-    // and create their own requests. They can only update/delete their own.
+    // Any authenticated user can read all requests (for suggestions page).
+    // Users can create their own requests.
+    // Users can only update/delete their own requests.
     match /pickupRequests/{pickupRequestId} {
       allow read: if isSignedIn();
       allow create: if isCreatingOwnedDoc();
@@ -52,23 +61,30 @@ service cloud.firestore {
       allow update, delete: if isOwnerOfExistingDoc();
     }
 
-    // Rides: Only participants can interact with a ride document.
+    // Rides:
+    // A ride can be created if the user is one of the participants.
+    // Only participants can read, update, or delete a ride document.
     match /rides/{rideId} {
-      allow read, write: if isParticipant(resource);
+      allow create: if isParticipantInNewDoc();
+      allow read, update, delete: if isParticipantInExistingDoc();
     }
 
-    // Chats: Similar to rides, only participants can interact.
+    // Chats:
+    // A chat can be created if the user is one of the participants.
+    // Only participants can read or update a chat document.
+    // Chats cannot be deleted from the client.
     match /chats/{chatId} {
-      allow read, write: if isParticipant(resource);
+      allow create: if isParticipantInNewDoc();
+      allow read, update: if isParticipantInExistingDoc();
+      allow delete: if false;
     }
 
-    // SOS Alerts: Only the owner can create an alert. 
-    // Reading/deleting should be handled by a trusted backend process, not directly by clients.
+    // SOS Alerts:
+    // Only the owner can create an alert.
+    // No one can read/update/delete from the client. This should be handled by a backend process.
     match /sos_alerts/{sosAlertId} {
       allow read, update, delete: if false;
       allow create: if isCreatingOwnedDoc();
     }
   }
 }
-
-    
