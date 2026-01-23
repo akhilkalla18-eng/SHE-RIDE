@@ -164,7 +164,7 @@ export default function LandingPage() {
                 </li>
               </ul>
             </div>
-            <div className="hidden lg:flex items-center justify-center">
+            <div className="hidden md:flex items-center justify-center">
                 {safetyImage && (
                     <Image
                         src={safetyImage.imageUrl}
@@ -193,7 +193,7 @@ export default function LandingPage() {
             <div className="mx-auto grid max-w-5xl gap-8 sm:grid-cols-1 md:gap-12 lg:max-w-none lg:grid-cols-3 mt-12">
               <Card>
                 <CardHeader className="flex flex-row items-center gap-4">
-                  {avatar1 && <Image src={avatar1.imageUrl} alt={avatar1.description} width={48} height={48} className="h-12 w-12 rounded-full object-cover" />}
+                  {avatar1 && <Image src={avatar1.imageUrl} alt={avatar1.description} width={48} height={48} className="h-12 w-12 rounded-full object-cover" data-ai-hint={avatar1.imageHint} />}
                   <div>
                     <CardTitle>Priya S.</CardTitle>
                     <CardDescription>Daily Commuter</CardDescription>
@@ -205,7 +205,7 @@ export default function LandingPage() {
               </Card>
                <Card>
                 <CardHeader className="flex flex-row items-center gap-4">
-                  {avatar2 && <Image src={avatar2.imageUrl} alt={avatar2.description} width={48} height={48} className="h-12 w-12 rounded-full object-cover" />}
+                  {avatar2 && <Image src={avatar2.imageUrl} alt={avatar2.description} width={48} height={48} className="h-12 w-12 rounded-full object-cover" data-ai-hint={avatar2.imageHint} />}
                   <div>
                     <CardTitle>Anika J.</CardTitle>
                     <CardDescription>Occasional Traveler</CardDescription>
@@ -217,7 +217,7 @@ export default function LandingPage() {
               </Card>
                <Card>
                 <CardHeader className="flex flex-row items-center gap-4">
-                  {avatar3 && <Image src={avatar3.imageUrl} alt={avatar3.description} width={48} height={48} className="h-12 w-12 rounded-full object-cover" />}
+                  {avatar3 && <Image src={avatar3.imageUrl} alt={avatar3.description} width={48} height={48} className="h-12 w-12 rounded-full object-cover" data-ai-hint={avatar3.imageHint} />}
                   <div>
                     <CardTitle>Rhea M.</CardTitle>
                     <CardDescription>New to the City</CardDescription>

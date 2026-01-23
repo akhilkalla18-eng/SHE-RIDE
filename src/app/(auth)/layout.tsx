@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Logo } from "@/components/logo";
@@ -10,7 +11,7 @@ export default function AuthLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const authImage = placeholderImages.find(p => p.id === 'hero');
+  const authImage = placeholderImages.find(p => p.id === 'auth');
 
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:min-h-screen">

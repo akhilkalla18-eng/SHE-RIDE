@@ -2,33 +2,39 @@
   "placeholderImages": [
     {
       "id": "hero",
-      "description": "Two women smiling while one rides a scooter on a city street.",
-      "imageUrl": "https://storage.googleapis.com/aip-dev-images-prod/12471a42-5f65-4303-9118-8ea59c0d296c.png",
-      "imageHint": "women scooter"
+      "description": "Two women happily sharing a scooter ride through a sunny city street, capturing the joy and community of SheRide.",
+      "imageUrl": "https://images.unsplash.com/photo-1560836115-45c18a763845?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3b21lbiUyMHNjb290ZXIlMjBjaXR5fGVufDB8fHx8MTc2OTE3NTUxN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "women scooter city"
     },
     {
       "id": "safety",
-      "description": "A woman with a scooter offering a ride to another woman, both smiling, embodying the SheRide concept of community and shared travel against a theme-appropriate backdrop.",
-      "imageUrl": "https://storage.googleapis.com/aip-dev-images-prod/2311295b-01a0-4e89-9a74-2ab77f722f46.png",
-      "imageHint": "woman scooter share"
+      "description": "A woman rider passing a helmet to another woman with a smile, showcasing the platform's emphasis on safety and trust.",
+      "imageUrl": "https://images.unsplash.com/photo-1550165946-6c770414edb8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx3b21lbiUyMGhlbG1ldCUyMHNhZmV0eXxlbnwwfHx8fDE3NjkxNzU1MTd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "women helmet safety"
     },
     {
       "id": "avatar1",
-      "description": "Avatar for a female user.",
-      "imageUrl": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8d29tYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3Njc3NzEwMzN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "woman portrait"
+      "description": "Portrait of a smiling woman, representing a happy SheRide user.",
+      "imageUrl": "https://images.unsplash.com/flagged/photo-1559855603-ce4c8f480d76?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8d29tYW4lMjBzbWlsaW5nfGVufDB8fHx8MTc2OTA2OTg5OXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman smiling"
     },
     {
       "id": "avatar2",
-      "description": "Avatar for another female user.",
-      "imageUrl": "https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHx3b21hbiUyMHNtaWxlfGVufDB8fHx8MTc2Nzc4MDQ3NXww&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "woman smile"
+      "description": "Portrait of a confident woman in an urban setting, representing a SheRide commuter.",
+      "imageUrl": "https://images.unsplash.com/photo-1656613996478-9d61c702cdc8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHx3b21hbiUyMHVyYmFufGVufDB8fHx8MTc2OTEyNzQ0OXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman urban"
     },
     {
       "id": "avatar3",
-      "description": "Avatar for a third female user.",
-      "imageUrl": "https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxwZXJzb24lMjBzbWlsaW5nfGVufDB8fHx8MTc2NzcwNTAyN3ww&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "person smiling"
+      "description": "Portrait of a woman enjoying her travel, representing a SheRide member.",
+      "imageUrl": "https://images.unsplash.com/photo-1532675432006-329c6fed7045?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3b21hbiUyMHRyYXZlbHxlbnwwfHx8fDE3NjkxNDMyNDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman travel"
+    },
+    {
+      "id": "auth",
+      "description": "A stylish shot of a woman riding a scooter, seen from the side, representing independence and modern travel.",
+      "imageUrl": "https://images.unsplash.com/photo-1671866604416-57a3fab71706?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHx3b21hbiUyMHJpZGluZyUyMHNjb290ZXJ8ZW58MHx8fHwxNzY5MTc1NTE3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman riding scooter"
     }
   ]
 }
