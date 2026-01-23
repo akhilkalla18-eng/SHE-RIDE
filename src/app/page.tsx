@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -16,23 +17,23 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <header className="px-4 lg:px-6 h-16 flex items-center bg-background/80 backdrop-blur-sm fixed top-0 w-full z-50 border-b">
-        <Link href="/" className="flex items-center justify-center" prefetch={false}>
+        <Link href="/" className="flex items-center justify-center">
           <Logo className="h-8 w-auto" />
           <span className="sr-only">SheRide</span>
         </Link>
         <nav className="ml-auto flex gap-2 sm:gap-4">
            <Button variant="ghost" asChild>
-              <Link href="#safety" prefetch={false}>
+              <Link href="#safety">
                 Safety
               </Link>
           </Button>
           <Button variant="ghost" asChild>
-            <Link href="/login" prefetch={false}>
+            <Link href="/login">
               Login
             </Link>
           </Button>
           <Button asChild>
-            <Link href="/signup" prefetch={false}>
+            <Link href="/signup">
               Sign Up
             </Link>
           </Button>
@@ -53,18 +54,18 @@ export default function LandingPage() {
                 </p>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
                   <Button asChild size="lg">
-                    <Link href="/signup" prefetch={false}>
+                    <Link href="/signup">
                       Join the Community
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">
-                    <Link href="#how-it-works" prefetch={false}>
+                    <Link href="#how-it-works">
                       Learn More
                     </Link>
                   </Button>
                 </div>
               </div>
-              <div className="hidden md:flex items-center justify-center">
+              <div className="flex items-center justify-center">
                  {heroImage && (
                   <Image
                     src={heroImage.imageUrl}
@@ -233,10 +234,10 @@ export default function LandingPage() {
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
         <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} SheRide. All rights reserved.</p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
-          <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
+          <Link href="#" className="text-xs hover:underline underline-offset-4">
             Terms of Service
           </Link>
-          <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
+          <Link href="#" className="text-xs hover:underline underline-offset-4">
             Privacy
           </Link>
         </nav>
