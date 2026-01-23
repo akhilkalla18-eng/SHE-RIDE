@@ -95,10 +95,7 @@ export default function ProfilePage() {
             const uploadTask = await uploadBytes(storageRef, fileToUpload);
             const downloadURL = await getDownloadURL(uploadTask.ref);
 
-            const updatedData = {
-                drivingLicenseId: downloadURL,
-            };
-            await setDoc(userProfileRef, updatedData, { merge: true });
+            await setDoc(userProfileRef, { drivingLicenseId: downloadURL }, { merge: true });
 
             toast({
                 title: "ID Uploaded Successfully",
@@ -111,7 +108,7 @@ export default function ProfilePage() {
             toast({
                 variant: "destructive",
                 title: "Upload Failed",
-                description: "There was an error uploading your document. Please try again.",
+                description: "There was an error uploading your document. Please check your storage permissions and try again.",
             });
         } finally {
             setIsUploading(false);
@@ -249,7 +246,7 @@ export default function ProfilePage() {
                     </CardHeader>
                     <CardContent className="grid gap-4">
                         <div className="grid gap-2">
-                            <Label htmlFor="id-upload">Aadhaar / Driving License</Label>
+                            <Label htmlFor="id-upload">Driving License</Label>
                             <Input
                                 id="id-upload"
                                 type="file"
@@ -270,5 +267,3 @@ export default function ProfilePage() {
         </div>
     )
 }
-
-    

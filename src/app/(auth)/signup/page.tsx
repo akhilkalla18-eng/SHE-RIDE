@@ -76,7 +76,7 @@ export default function SignupPage() {
       };
 
       const userDocRef = doc(firestore, "users", user.uid);
-      await setDoc(userDocRef, userProfile, { merge: true });
+      await setDoc(userDocRef, userProfile);
 
       toast({
         title: "Account Created!",
@@ -123,12 +123,13 @@ export default function SignupPage() {
             <Input name="city" id="city" placeholder="Mumbai" required />
         </div>
         <div className="grid gap-2">
-            <Label htmlFor="id-upload">Aadhaar / Driving License (Optional)</Label>
+            <Label htmlFor="id-upload">Driving License (Optional)</Label>
             <Input
               name="id-upload"
               id="id-upload"
               type="file"
               onChange={(e) => setFileToUpload(e.target.files ? e.target.files[0] : null)}
+              accept="image/*,.pdf"
             />
             <p className="text-xs text-muted-foreground">Recommended for a 'Verified' badge.</p>
         </div>
@@ -160,5 +161,3 @@ export default function SignupPage() {
     </>
   )
 }
-
-    
