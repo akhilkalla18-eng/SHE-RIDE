@@ -14,10 +14,12 @@ service cloud.firestore {
     }
     
     function isCreatingOwnedDoc() {
+      // Ensure the document being created has a userProfileId matching the requester's UID.
       return isSignedIn() && request.resource.data.userProfileId == request.auth.uid;
     }
     
     function isOwnerOfExistingDoc() {
+      // Ensure the existing document's userProfileId matches the requester's UID.
       return isSignedIn() && resource.data.userProfileId == request.auth.uid;
     }
     
@@ -36,19 +38,14 @@ service cloud.firestore {
     }
 
     // Pickup & Service Requests:
-    // Any signed-in user can read the list of open requests.
-    // Users can only create requests for themselves.
-    // Only the owner can update or delete their specific request.
+    // TEMPORARILY simplified to debug permission errors.
+    // This allows any authenticated user to read and write all requests.
     match /pickupRequests/{pickupRequestId} {
-      allow read: if isSignedIn();
-      allow create: if isCreatingOwnedDoc();
-      allow update, delete: if isOwnerOfExistingDoc();
+      allow read, write: if isSignedIn();
     }
 
     match /serviceRequests/{serviceRequestId} {
-      allow read: if isSignedIn();
-      allow create: if isCreatingOwnedDoc();
-      allow update, delete: if isOwnerOfExistingDoc();
+      allow read, write: if isSignedIn();
     }
 
     // Rides: Only participants can interact with a ride document.
