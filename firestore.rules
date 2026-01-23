@@ -60,22 +60,15 @@ service cloud.firestore {
     }
 
     match /rides/{rideId} {
-      // A user can GET a ride document if they are a participant.
-      allow get: if isParticipant(resource);
-      // A user can LIST rides if they are signed in. Client queries MUST
-      // filter by participantId to be secure. Firestore's backend security
-      // will verify the 'get' rule for each document returned by the query.
-      allow list: if isSignedIn();
+      allow read: if isParticipant(resource);
+      allow list: if false; // List operations are insecure by default.
       allow create: if isCreatingAsParticipant();
       allow update, delete: if isParticipant(resource) && isExistingDoc();
     }
 
     match /chats/{chatId} {
-      // A user can GET a chat document if they are a participant.
-      allow get: if isParticipant(resource);
-      // A user can LIST chats if they are signed in. Client queries MUST
-      // filter by participantId to be secure.
-      allow list: if isSignedIn();
+      allow read: if isParticipant(resource);
+      allow list: if false; // List operations are insecure by default.
       allow create: if isCreatingAsParticipant();
       allow update, delete: if isParticipant(resource) && isExistingDoc();
     }
