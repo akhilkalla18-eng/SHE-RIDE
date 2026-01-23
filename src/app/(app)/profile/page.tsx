@@ -11,8 +11,8 @@ import { UserProfile } from "@/lib/schemas";
 import { CheckCircle, Shield } from "lucide-react";
 import React from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking, useStorage } from "@/firebase";
-import { doc } from "firebase/firestore";
+import { useUser, useFirestore, useDoc, useMemoFirebase, useStorage } from "@/firebase";
+import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -33,7 +33,7 @@ export default function ProfilePage() {
 
     const { data: profile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
-    const handleProfileUpdate = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleProfileUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!userProfileRef) return;
         setIsSaving(true);
@@ -43,13 +43,22 @@ export default function ProfilePage() {
             city: formData.get("city") as string,
         };
         
-        setDocumentNonBlocking(userProfileRef, updatedData, { merge: true });
-        
-        toast({ title: "Profile update request sent!" });
-        setTimeout(() => setIsSaving(false), 1000);
+        try {
+            await setDoc(userProfileRef, updatedData, { merge: true });
+            toast({ title: "Profile updated successfully!" });
+        } catch (error) {
+            console.error("Profile update error:", error);
+            toast({
+                variant: "destructive",
+                title: "Update Failed",
+                description: "Could not save your profile changes. Please try again.",
+            });
+        } finally {
+            setIsSaving(false);
+        }
     }
 
-    const handleSafetyUpdate = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSafetyUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!userProfileRef) return;
         setIsSaving(true);
@@ -61,10 +70,19 @@ export default function ProfilePage() {
             emergencyContact: `${emergencyName} (${emergencyPhone})`,
         };
 
-        setDocumentNonBlocking(userProfileRef, updatedData, { merge: true });
-
-        toast({ title: "Safety info update request sent!" });
-        setTimeout(() => setIsSaving(false), 1000);
+        try {
+            await setDoc(userProfileRef, updatedData, { merge: true });
+            toast({ title: "Safety info updated successfully!" });
+        } catch (error) {
+             console.error("Safety info update error:", error);
+            toast({
+                variant: "destructive",
+                title: "Update Failed",
+                description: "Could not save your safety info. Please try again.",
+            });
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     const handleVerificationUpload = async () => {
@@ -80,7 +98,7 @@ export default function ProfilePage() {
             const updatedData = {
                 drivingLicenseId: downloadURL,
             };
-            setDocumentNonBlocking(userProfileRef, updatedData, { merge: true });
+            await setDoc(userProfileRef, updatedData, { merge: true });
 
             toast({
                 title: "ID Uploaded Successfully",
@@ -252,3 +270,5 @@ export default function ProfilePage() {
         </div>
     )
 }
+
+    

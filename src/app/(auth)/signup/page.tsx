@@ -9,9 +9,9 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
-import { useAuth, useFirestore, setDocumentNonBlocking, useStorage } from "@/firebase";
+import { useAuth, useFirestore, useStorage } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { UserProfile } from "@/lib/schemas";
 
@@ -76,7 +76,7 @@ export default function SignupPage() {
       };
 
       const userDocRef = doc(firestore, "users", user.uid);
-      setDocumentNonBlocking(userDocRef, userProfile, { merge: true });
+      await setDoc(userDocRef, userProfile, { merge: true });
 
       toast({
         title: "Account Created!",
@@ -160,3 +160,5 @@ export default function SignupPage() {
     </>
   )
 }
+
+    
