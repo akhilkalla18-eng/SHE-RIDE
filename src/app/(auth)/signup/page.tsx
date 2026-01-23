@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
-import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
+import { useAuth, useFirestore, setDocumentNonBlocking, useStorage } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { UserProfile } from "@/lib/schemas";
 
 
@@ -21,6 +22,8 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const auth = useAuth();
   const firestore = useFirestore();
+  const storage = useStorage();
+  const [fileToUpload, setFileToUpload] = React.useState<File | null>(null);
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,6 +49,22 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      let drivingLicenseUrl: string | undefined = undefined;
+      if (fileToUpload && storage) {
+        const storageRef = ref(storage, `verification-docs/${user.uid}/${fileToUpload.name}`);
+        try {
+            const uploadTask = await uploadBytes(storageRef, fileToUpload);
+            drivingLicenseUrl = await getDownloadURL(uploadTask.ref);
+        } catch (uploadError) {
+            console.error("File upload failed during signup:", uploadError);
+            toast({
+                variant: "destructive",
+                title: "ID Upload Failed",
+                description: "Your account was created, but the ID upload failed. You can try again from your profile.",
+            });
+        }
+      }
+
       const userProfile: UserProfile = {
         id: user.uid,
         name,
@@ -53,6 +72,7 @@ export default function SignupPage() {
         phoneNumber,
         city,
         profileVerified: false,
+        drivingLicenseId: drivingLicenseUrl,
       };
 
       const userDocRef = doc(firestore, "users", user.uid);
@@ -104,7 +124,12 @@ export default function SignupPage() {
         </div>
         <div className="grid gap-2">
             <Label htmlFor="id-upload">Aadhaar / Driving License (Optional)</Label>
-            <Input name="id-upload" id="id-upload" type="file" />
+            <Input
+              name="id-upload"
+              id="id-upload"
+              type="file"
+              onChange={(e) => setFileToUpload(e.target.files ? e.target.files[0] : null)}
+            />
             <p className="text-xs text-muted-foreground">Recommended for a 'Verified' badge.</p>
         </div>
         <div className="grid gap-2">

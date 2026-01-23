@@ -34,7 +34,7 @@
         },
         "drivingLicenseId": {
           "type": "string",
-          "description": "User's Driving License ID (optional)."
+          "description": "URL to the user's uploaded Driving License ID (optional)."
         },
         "profileVerified": {
           "type": "boolean",
