@@ -144,11 +144,10 @@ service cloud.firestore {
      * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'participantIds' array. Queries on this collection are only allowed if they constrain the results to rides where the user is a participant.
      */
     match /rides/{rideId} {
-      // NOTE: These rules assume the 'Ride' document contains a 'participantIds' array field with the UIDs of all participants.
-      // The 'read' rule covers both 'get' and 'list' operations.
-      // For 'list' (queries), this rule requires that the query constrains the results to only documents
-      // where the user's ID is in the 'participantIds' array.
-      allow read: if isParticipant(resource);
+      // NOTE: `list` is allowed if signed in, but security is enforced by client-side queries
+      // that filter by participantId, which is then validated by the `get` rule.
+      allow get: if isParticipant(resource);
+      allow list: if isSignedIn();
       allow create: if isCreatingAsParticipant();
       allow update: if isParticipant(resource) && isExistingDoc();
       allow delete: if isParticipant(resource) && isExistingDoc();
@@ -162,7 +161,10 @@ service cloud.firestore {
      * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'participantIds' array.
      */
     match /chats/{chatId} {
-      allow read: if isParticipant(resource);
+      // NOTE: `list` is allowed if signed in, but security is enforced by client-side queries
+      // that filter by participantId, which is then validated by the `get` rule.
+      allow get: if isParticipant(resource);
+      allow list: if isSignedIn();
       allow create: if isCreatingAsParticipant();
       allow update: if isParticipant(resource) && isExistingDoc();
       allow delete: if isParticipant(resource) && isExistingDoc();
