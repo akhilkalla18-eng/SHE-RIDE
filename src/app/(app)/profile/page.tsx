@@ -11,7 +11,7 @@ import { UserProfile } from "@/lib/schemas";
 import { CheckCircle, Shield } from "lucide-react";
 import React from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking, useStorage } from "@/firebase";
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking, useStorage } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,7 +43,7 @@ export default function ProfilePage() {
             city: formData.get("city") as string,
         };
         
-        updateDocumentNonBlocking(userProfileRef, updatedData);
+        setDocumentNonBlocking(userProfileRef, updatedData, { merge: true });
         
         toast({ title: "Profile update request sent!" });
         setTimeout(() => setIsSaving(false), 1000);
@@ -61,7 +61,7 @@ export default function ProfilePage() {
             emergencyContact: `${emergencyName} (${emergencyPhone})`,
         };
 
-        updateDocumentNonBlocking(userProfileRef, updatedData);
+        setDocumentNonBlocking(userProfileRef, updatedData, { merge: true });
 
         toast({ title: "Safety info update request sent!" });
         setTimeout(() => setIsSaving(false), 1000);
@@ -80,7 +80,7 @@ export default function ProfilePage() {
             const updatedData = {
                 drivingLicenseId: downloadURL,
             };
-            updateDocumentNonBlocking(userProfileRef, updatedData);
+            setDocumentNonBlocking(userProfileRef, updatedData, { merge: true });
 
             toast({
                 title: "ID Uploaded Successfully",
@@ -242,7 +242,7 @@ export default function ProfilePage() {
                         <Button
                             className="w-full sm:w-auto ml-auto"
                             onClick={handleVerificationUpload}
-                            disabled={isUploading || !fileToUpload}
+                            disabled={isUploading || !fileToUpload || !user}
                         >
                             {isUploading ? "Uploading..." : "Upload for Verification"}
                         </Button>
