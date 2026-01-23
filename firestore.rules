@@ -12,23 +12,27 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-
+    
+    // Helper to check if the user is the owner of the document being created.
+    function isCreatingOwnedDoc() {
+      // Check that the incoming document's userProfileId matches the user's UID.
+      return isSignedIn() && request.resource.data.userProfileId == request.auth.uid;
+    }
+    
+    // Helper to check if the user is the owner of an *existing* document.
+    function isOwnerOfExistingDoc() {
+      // Check that the existing document on the server has a userProfileId matching the user's UID.
+      return isSignedIn() && resource.data.userProfileId == request.auth.uid;
+    }
+    
     function isParticipant(doc) {
-      // Robustly check if participantIds exists and is a list before checking for inclusion.
+      // Safely check if 'participantIds' exists, is a list, and contains the user's UID.
       return isSignedIn() && 
              'participantIds' in doc.data &&
              doc.data.participantIds is list &&
              request.auth.uid in doc.data.participantIds;
     }
 
-    function isCreatingOwnedDoc() {
-      return isSignedIn() && request.resource.data.userProfileId == request.auth.uid;
-    }
-
-    function isOwnerOfExistingDoc() {
-      return isSignedIn() && resource.data.userProfileId == request.auth.uid;
-    }
-    
     // --- Collection Rules ---
 
     // User Profiles: Only the owner can read or write their own profile.
@@ -36,47 +40,43 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Pickup Requests (Ride Offers): Open for browsing, but only owner can manage.
+    // Pickup & Service Requests:
+    // Any signed-in user can list open requests.
+    // Users can only create requests for themselves.
+    // Only the owner can view their specific request ('get'), update it, or delete it.
     match /pickupRequests/{pickupRequestId} {
-      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow get: if isOwnerOfExistingDoc();
       allow create: if isCreatingOwnedDoc();
       allow update, delete: if isOwnerOfExistingDoc();
     }
 
-    // Service Requests (Ride Needs): Open for browsing, but only owner can manage.
     match /serviceRequests/{serviceRequestId} {
-      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow get: if isOwnerOfExistingDoc();
       allow create: if isCreatingOwnedDoc();
       allow update, delete: if isOwnerOfExistingDoc();
     }
 
     // Rides: Only participants can interact with a ride document.
     match /rides/{rideId} {
-      // A user can get a ride document if they are a participant.
-      allow get: if isParticipant(resource);
-
-      // A user can list rides, but the query *must* include a filter for their UID.
-      // Firestore enforces the 'get' rule on every document returned by a 'list' query.
-      // So, if the client queries for rides where they aren't a participant, the query will fail.
-      allow list: if isSignedIn();
-
-      // A user can create a ride if they are listed as a participant in the new ride document.
-      allow create: if isParticipant(request.resource);
-
-      // A user can update or delete a ride if they are a participant.
-      allow update, delete: if isParticipant(resource);
+      // 'get' and 'list' are covered by 'read'. A list query is a series of get requests.
+      // Firestore will enforce this rule on every document returned by a query.
+      // Your client queries on /rides MUST filter to only include rides where the user is a participant.
+      allow read: if isParticipant(resource);
+      
+      // Allow participants to create, update, or delete rides.
+      allow write: if isParticipant(request.resource);
     }
 
     // Chats: Similar to rides, only participants can interact.
     match /chats/{chatId} {
-      allow get: if isParticipant(resource);
-      allow list: if isSignedIn();
-      allow create: if isParticipant(request.resource);
-      allow update, delete: if isParticipant(resource);
+      allow read: if isParticipant(resource);
+      allow write: if isParticipant(request.resource);
     }
 
-    // SOS Alerts: Only the owner can create an alert. No one can read/update/delete them directly.
-    // (These would be handled by a backend process/cloud function).
+    // SOS Alerts: Only the owner can create an alert. 
+    // Reading/deleting should be handled by a trusted backend process, not directly by clients.
     match /sos_alerts/{sosAlertId} {
       allow read, update, delete: if false;
       allow create: if isCreatingOwnedDoc();
