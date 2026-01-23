@@ -13,20 +13,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    // Helper to check if the user is the owner of the document being created.
     function isCreatingOwnedDoc() {
-      // Check that the incoming document's userProfileId matches the user's UID.
       return isSignedIn() && request.resource.data.userProfileId == request.auth.uid;
     }
     
-    // Helper to check if the user is the owner of an *existing* document.
     function isOwnerOfExistingDoc() {
-      // Check that the existing document on the server has a userProfileId matching the user's UID.
       return isSignedIn() && resource.data.userProfileId == request.auth.uid;
     }
     
     function isParticipant(doc) {
-      // Safely check if 'participantIds' exists, is a list, and contains the user's UID.
       return isSignedIn() && 
              'participantIds' in doc.data &&
              doc.data.participantIds is list &&
@@ -41,38 +36,29 @@ service cloud.firestore {
     }
 
     // Pickup & Service Requests:
-    // Any signed-in user can list open requests.
+    // Any signed-in user can read the list of open requests.
     // Users can only create requests for themselves.
-    // Only the owner can view their specific request ('get'), update it, or delete it.
+    // Only the owner can update or delete their specific request.
     match /pickupRequests/{pickupRequestId} {
-      allow list: if isSignedIn();
-      allow get: if isOwnerOfExistingDoc();
+      allow read: if isSignedIn();
       allow create: if isCreatingOwnedDoc();
       allow update, delete: if isOwnerOfExistingDoc();
     }
 
     match /serviceRequests/{serviceRequestId} {
-      allow list: if isSignedIn();
-      allow get: if isOwnerOfExistingDoc();
+      allow read: if isSignedIn();
       allow create: if isCreatingOwnedDoc();
       allow update, delete: if isOwnerOfExistingDoc();
     }
 
     // Rides: Only participants can interact with a ride document.
     match /rides/{rideId} {
-      // 'get' and 'list' are covered by 'read'. A list query is a series of get requests.
-      // Firestore will enforce this rule on every document returned by a query.
-      // Your client queries on /rides MUST filter to only include rides where the user is a participant.
-      allow read: if isParticipant(resource);
-      
-      // Allow participants to create, update, or delete rides.
-      allow write: if isParticipant(request.resource);
+      allow read, write: if isParticipant(resource);
     }
 
     // Chats: Similar to rides, only participants can interact.
     match /chats/{chatId} {
-      allow read: if isParticipant(resource);
-      allow write: if isParticipant(request.resource);
+      allow read, write: if isParticipant(resource);
     }
 
     // SOS Alerts: Only the owner can create an alert. 
