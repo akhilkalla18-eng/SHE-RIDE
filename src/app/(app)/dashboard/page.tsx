@@ -33,11 +33,10 @@ import {
 } from "recharts"
 import React, { useState, useEffect } from "react"
 import { placeholderImages } from "@/lib/placeholder-images"
-import { Ride } from "@/lib/schemas"
-
-const user = {
-    displayName: "Priya"
-};
+import { Ride, UserProfile } from "@/lib/schemas"
+import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase"
+import { doc } from "firebase/firestore"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const suggestionsWithUsers = [
     { id: 's1', type: 'pickup', startingLocation: 'Juhu, Mumbai', destination: 'Powai, Mumbai', dateTime: '2024-08-16T18:00:00.000Z', user: { name: 'Sunita' } },
@@ -51,6 +50,15 @@ const upcomingRides: Partial<Ride>[] = [
 
 export default function Dashboard() {
   const [chartData, setChartData] = useState<any[]>([]);
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
+  const userProfileRef = useMemoFirebase(() => {
+      if (!user || !firestore) return null;
+      return doc(firestore, "users", user.uid);
+  }, [firestore, user]);
+
+  const { data: profile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
   useEffect(() => {
     setChartData([
@@ -66,7 +74,11 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-4 md:gap-8">
         <div className="space-y-1.5">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Welcome back, {user?.displayName || 'User'}!</h1>
+            {isUserLoading || isProfileLoading ? (
+                <Skeleton className="h-9 w-64" />
+            ) : (
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Welcome back, {profile?.name || 'User'}!</h1>
+            )}
             <p className="text-muted-foreground">Here's what's happening on SheRide today.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
