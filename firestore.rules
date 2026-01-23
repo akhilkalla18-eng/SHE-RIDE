@@ -38,14 +38,18 @@ service cloud.firestore {
     }
 
     // Pickup & Service Requests:
-    // TEMPORARILY simplified to debug permission errors.
-    // This allows any authenticated user to read and write all requests.
+    // Any authenticated user can read all requests (for suggestions page)
+    // and create their own requests. They can only update/delete their own.
     match /pickupRequests/{pickupRequestId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isCreatingOwnedDoc();
+      allow update, delete: if isOwnerOfExistingDoc();
     }
 
     match /serviceRequests/{serviceRequestId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isCreatingOwnedDoc();
+      allow update, delete: if isOwnerOfExistingDoc();
     }
 
     // Rides: Only participants can interact with a ride document.
@@ -66,3 +70,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

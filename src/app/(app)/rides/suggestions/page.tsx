@@ -45,23 +45,26 @@ export default function SuggestionsPage() {
     const firestore = useFirestore();
 
     const pickupRequestsQuery = React.useMemo(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, "pickupRequests"), where("userProfileId", "!=", user.uid), where("status", "==", "open"));
-    }, [firestore, user]);
+        if (!firestore) return null;
+        return query(collection(firestore, "pickupRequests"), where("status", "==", "open"));
+    }, [firestore]);
     const {data: pickupRequests, isLoading: arePickupsLoading} = useCollection<PickupRequest>(pickupRequestsQuery);
 
     const serviceRequestsQuery = React.useMemo(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, "serviceRequests"), where("userProfileId", "!=", user.uid), where("status", "==", "open"));
-    }, [firestore, user]);
+        if (!firestore) return null;
+        return query(collection(firestore, "serviceRequests"), where("status", "==", "open"));
+    }, [firestore]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
 
     const suggestions = React.useMemo(() => {
-        if (!pickupRequests || !serviceRequests || !user) return [];
+        if (!user || (!pickupRequests && !serviceRequests)) return [];
         
+        const otherPickups = pickupRequests?.filter(r => r.userProfileId !== user.uid) || [];
+        const otherServices = serviceRequests?.filter(r => r.userProfileId !== user.uid) || [];
+
         const combined: CombinedRequest[] = [
-            ...(pickupRequests.map(r => ({ ...r, type: 'pickup' as const }))),
-            ...(serviceRequests.map(r => ({ ...r, type: 'service' as const })))
+            ...(otherPickups.map(r => ({ ...r, type: 'pickup' as const }))),
+            ...(otherServices.map(r => ({ ...r, type: 'service' as const })))
         ];
 
         return combined
@@ -161,3 +164,5 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
         </Card>
     );
 }
+
+    

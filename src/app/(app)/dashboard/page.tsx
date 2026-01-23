@@ -71,24 +71,25 @@ export default function Dashboard() {
     const { data: rides, isLoading: areRidesLoading } = useCollection<Ride>(ridesQuery);
 
     const pickupRequestsQuery = React.useMemo(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, "pickupRequests"), where("userProfileId", "!=", user.uid), where("status", "==", "open"));
-    }, [firestore, user]);
+        if (!firestore) return null;
+        return query(collection(firestore, "pickupRequests"), where("status", "==", "open"));
+    }, [firestore]);
     const {data: pickupRequests, isLoading: arePickupsLoading} = useCollection<PickupRequest>(pickupRequestsQuery);
 
     const serviceRequestsQuery = React.useMemo(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, "serviceRequests"), where("userProfileId", "!=", user.uid), where("status", "==", "open"));
-    }, [firestore, user]);
+        if (!firestore) return null;
+        return query(collection(firestore, "serviceRequests"), where("status", "==", "open"));
+    }, [firestore]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
     
     const upcomingRides = React.useMemo(() => rides?.filter(r => r.status === 'confirmed' || r.status === 'accepted') || [], [rides]);
     const completedRidesCount = React.useMemo(() => rides?.filter(r => r.status === 'completed').length || 0, [rides]);
+    
     const newSuggestionsCount = React.useMemo(() => {
-        if(!user) return 0;
-        const pickups = pickupRequests?.length || 0;
-        const services = serviceRequests?.length || 0;
-        return pickups + services;
+        if(!user || (!pickupRequests && !serviceRequests)) return 0;
+        const otherPickups = pickupRequests?.filter(r => r.userProfileId !== user.uid).length || 0;
+        const otherServices = serviceRequests?.filter(r => r.userProfileId !== user.uid).length || 0;
+        return otherPickups + otherServices;
     }, [pickupRequests, serviceRequests, user]);
 
 
@@ -313,3 +314,5 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
