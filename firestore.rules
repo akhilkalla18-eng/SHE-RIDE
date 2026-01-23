@@ -38,14 +38,14 @@ service cloud.firestore {
 
     // Pickup Requests (Ride Offers): Open for browsing, but only owner can manage.
     match /pickupRequests/{pickupRequestId} {
-      allow read, list: if isSignedIn();
+      allow read: if isSignedIn();
       allow create: if isCreatingOwnedDoc();
       allow update, delete: if isOwnerOfExistingDoc();
     }
 
     // Service Requests (Ride Needs): Open for browsing, but only owner can manage.
     match /serviceRequests/{serviceRequestId} {
-      allow read, list: if isSignedIn();
+      allow read: if isSignedIn();
       allow create: if isCreatingOwnedDoc();
       allow update, delete: if isOwnerOfExistingDoc();
     }
