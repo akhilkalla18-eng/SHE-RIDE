@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from "next/link"
@@ -34,19 +35,55 @@ import {
 import React, { useState, useEffect } from "react"
 import { placeholderImages } from "@/lib/placeholder-images"
 import { Ride, UserProfile } from "@/lib/schemas"
-import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { doc, collection, query, where, orderBy } from "firebase/firestore"
 import { Skeleton } from "@/components/ui/skeleton"
 
-const suggestionsWithUsers = [
-    { id: 's1', type: 'pickup', startingLocation: 'Juhu, Mumbai', destination: 'Powai, Mumbai', dateTime: '2024-08-16T18:00:00.000Z', user: { name: 'Sunita' } },
-    { id: 's2', type: 'service', pickupLocation: 'Andheri West', destination: 'Bandra Kurla Complex', dateTime: '2024-08-17T09:00:00.000Z', user: { name: 'Rani' } },
-    { id: 's3', type: 'pickup', startingLocation: 'Dadar', destination: 'Lower Parel', dateTime: '2024-08-18T14:00:00.000Z', user: { name: 'Geeta' } },
-];
+function UpcomingRideItem({ ride }: { ride: Ride & {id: string} }) {
+    const { user } = useUser();
+    const firestore = useFirestore();
 
-const upcomingRides: Partial<Ride>[] = [
-    { id: 'r1', participantIds: ['user1', 'user2'], dateTime: '2024-08-20T10:00:00.000Z'},
-];
+    const otherUserId = ride.participantIds.find(id => id !== user?.uid);
+
+    const otherUserRef = useMemoFirebase(() => {
+        if (!firestore || !otherUserId) return null;
+        return doc(firestore, 'users', otherUserId);
+    }, [firestore, otherUserId]);
+
+    const { data: otherUser, isLoading } = useDoc<UserProfile>(otherUserRef);
+
+    if (isLoading || !otherUser) {
+        return (
+            <div className="flex items-center gap-4 animate-pulse">
+                <Skeleton className="h-9 w-9 rounded-full" />
+                <div className="space-y-1">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-32" />
+                </div>
+            </div>
+        );
+    }
+    
+    return (
+        <div className=" flex items-center gap-4" key={ride.id}>
+            <Avatar className="hidden h-9 w-9 sm:flex">
+                <AvatarImage src={(placeholderImages.find(p=>p.id === 'avatar3')?.imageUrl)} alt="Avatar" />
+                <AvatarFallback>{otherUser.name.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="grid gap-1">
+                <p className="text-sm font-medium leading-none">
+                    Ride with {otherUser.name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                    on {new Date(ride.dateTime).toLocaleDateString()}
+                </p>
+            </div>
+            <Button variant="ghost" size="icon" className="ml-auto">
+                <ArrowUpRight className="h-4 w-4" />
+            </Button>
+        </div>
+    )
+}
 
 export default function Dashboard() {
   const [chartData, setChartData] = useState<any[]>([]);
@@ -60,6 +97,33 @@ export default function Dashboard() {
 
   const { data: profile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
+  // Fetch upcoming rides
+  const upcomingRidesQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(
+      collection(firestore, "rides"),
+      where("participantIds", "array-contains", user.uid),
+      where("status", "in", ["accepted", "confirmed"]),
+      orderBy("dateTime", "asc")
+    );
+  }, [user, firestore]);
+  const { data: upcomingRides, isLoading: upcomingRidesLoading } = useCollection<Ride>(upcomingRidesQuery);
+
+  // Fetch completed rides for stats
+  const completedRidesQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(
+      collection(firestore, "rides"),
+      where("participantIds", "array-contains", user.uid),
+      where("status", "==", "completed")
+    );
+  }, [user, firestore]);
+  const { data: completedRides, isLoading: completedRidesLoading } = useCollection<Ride>(completedRidesQuery);
+
+  // For now, ride suggestions are not implemented with real data to avoid security issues with current rules.
+  const suggestionsWithUsers: any[] = [];
+
+
   useEffect(() => {
     setChartData([
         { name: "Jan", total: Math.floor(Math.random() * 50) + 10 },
@@ -70,6 +134,8 @@ export default function Dashboard() {
         { name: "Jun", total: Math.floor(Math.random() * 50) + 10 },
     ]);
   }, []);
+  
+  const isLoading = isUserLoading || isProfileLoading || upcomingRidesLoading || completedRidesLoading;
   
   return (
     <div className="flex flex-col gap-4 md:gap-8">
@@ -90,9 +156,9 @@ export default function Dashboard() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
+              {completedRidesLoading ? <Skeleton className="h-8 w-10" /> : <div className="text-2xl font-bold">{completedRides?.length || 0}</div>}
               <p className="text-xs text-muted-foreground">
-                +3 since last month
+                completed by you
               </p>
             </CardContent>
           </Card>
@@ -116,7 +182,7 @@ export default function Dashboard() {
               <Bike className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{upcomingRides?.length || 0}</div>
+              {upcomingRidesLoading ? <Skeleton className="h-8 w-10" /> : <div className="text-2xl font-bold">{upcomingRides?.length || 0}</div>}
               <p className="text-xs text-muted-foreground">
                 Ready for your next journey
               </p>
@@ -164,7 +230,14 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {suggestionsWithUsers.slice(0, 3).map((ride: any) => (
+                  {isLoading ? (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                          <p>Loading suggestions...</p>
+                        </TableCell>
+                    </TableRow>
+                  ) : suggestionsWithUsers.length > 0 ? (
+                    suggestionsWithUsers.slice(0, 3).map((ride: any) => (
                      <TableRow key={ride.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -187,7 +260,14 @@ export default function Dashboard() {
                             </Button>
                         </TableCell>
                     </TableRow>
-                  ))}
+                  ))
+                  ) : (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                            No new ride suggestions at the moment.
+                        </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -197,24 +277,13 @@ export default function Dashboard() {
               <CardTitle>Upcoming Confirmed Rides</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4">
-               {(upcomingRides && upcomingRides.length > 0) ? upcomingRides.map(ride => (
-                 <div className=" flex items-center gap-4" key={ride.id}>
-                    <Avatar className="hidden h-9 w-9 sm:flex">
-                       <AvatarImage src={(placeholderImages.find(p=>p.id === 'avatar3')?.imageUrl)} alt="Avatar" />
-                       <AvatarFallback>{ride.participantIds[0].charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="grid gap-1">
-                      <p className="text-sm font-medium leading-none">
-                         Ride with a user
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        on {new Date(ride.dateTime).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <Button variant="ghost" size="icon" className="ml-auto">
-                        <ArrowUpRight className="h-4 w-4" />
-                    </Button>
-                  </div>
+               {upcomingRidesLoading ? (
+                 <div className="space-y-4">
+                    <div className="flex items-center gap-4"><Skeleton className="h-9 w-9 rounded-full" /><div className="space-y-1"><Skeleton className="h-4 w-24" /><Skeleton className="h-4 w-32" /></div></div>
+                    <div className="flex items-center gap-4"><Skeleton className="h-9 w-9 rounded-full" /><div className="space-y-1"><Skeleton className="h-4 w-24" /><Skeleton className="h-4 w-32" /></div></div>
+                 </div>
+               ) : (upcomingRides && upcomingRides.length > 0) ? upcomingRides.map(ride => (
+                 <UpcomingRideItem key={ride.id} ride={ride} />
                )) : (
                  <p className="text-sm text-muted-foreground">No upcoming rides confirmed yet.</p>
                )}
