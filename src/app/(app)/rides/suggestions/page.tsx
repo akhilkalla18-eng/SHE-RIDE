@@ -4,22 +4,74 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Bike, User } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase";
+import { placeholderImages } from "@/lib/placeholder-images";
+import { UserProfile, PickupRequest, ServiceRequest } from "@/lib/schemas";
+import { ArrowRight, Bike, Search, User } from "lucide-react";
 import Link from "next/link";
 import React from "react";
-import { UserProfile, PickupRequest, ServiceRequest } from "@/lib/schemas";
-import { placeholderImages } from "@/lib/placeholder-images";
+import { collection, query, where, doc } from "firebase/firestore";
 
-const suggestionsWithUsers = [
-    { id: 's1', type: 'pickup', startingLocation: 'Juhu, Mumbai', destination: 'Powai, Mumbai', dateTime: '2024-08-16T18:00:00.000Z', user: { name: 'Sunita', city: 'Mumbai' }, vehicleType: 'Scooty' },
-    { id: 's2', type: 'service', pickupLocation: 'Andheri West', destination: 'Bandra Kurla Complex', dateTime: '2024-08-17T09:00:00.000Z', user: { name: 'Rani', city: 'Mumbai' } },
-    { id: 's3', type: 'pickup', startingLocation: 'Dadar', destination: 'Lower Parel', dateTime: '2024-08-18T14:00:00.000Z', user: { name: 'Geeta', city: 'Mumbai' }, vehicleType: 'Bike' },
-    { id: 's4', type: 'service', pickupLocation: 'Thane', destination: 'Vashi', dateTime: '2024-08-19T11:00:00.000Z', user: { name: 'Pooja', city: 'Thane' } },
-];
+type CombinedRequest = (PickupRequest | ServiceRequest) & { type: 'pickup' | 'service' };
+
+const SuggestionSkeleton = () => (
+    <Card className="flex flex-col">
+        <CardHeader>
+            <div className="flex items-center gap-3">
+                <Skeleton className="h-12 w-12 rounded-full" />
+                <div className="space-y-2">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-4 w-16" />
+                </div>
+            </div>
+        </CardHeader>
+        <CardContent className="flex-1 space-y-3">
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+        </CardContent>
+        <CardFooter className="flex gap-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+        </CardFooter>
+    </Card>
+);
 
 
 export default function SuggestionsPage() {
-    
+    const { user, isUserLoading } = useUser();
+    const firestore = useFirestore();
+
+    const pickupRequestsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, "pickupRequests"), where("status", "==", "open"));
+    }, [firestore]);
+    const {data: pickupRequests, isLoading: arePickupsLoading} = useCollection<PickupRequest>(pickupRequestsQuery);
+
+    const serviceRequestsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, "serviceRequests"), where("status", "==", "open"));
+    }, [firestore]);
+    const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
+
+    const suggestions = React.useMemo(() => {
+        if (!pickupRequests || !serviceRequests || !user) return [];
+        
+        const combined: CombinedRequest[] = [
+            ...(pickupRequests.map(r => ({ ...r, type: 'pickup' as const }))),
+            ...(serviceRequests.map(r => ({ ...r, type: 'service' as const })))
+        ];
+
+        return combined
+            .filter(r => r.userProfileId !== user.uid)
+            // @ts-ignore
+            .sort((a, b) => new Date(b.createdAt?.toDate() || 0) - new Date(a.createdAt?.toDate() || 0));
+
+    }, [pickupRequests, serviceRequests, user]);
+
+    const isLoading = arePickupsLoading || areServicesLoading || isUserLoading;
+
     return (
         <div className="container mx-auto">
             <div className="mb-8">
@@ -27,57 +79,85 @@ export default function SuggestionsPage() {
                 <p className="text-muted-foreground">Here are some ride offers and requests that match your potential routes.</p>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {suggestionsWithUsers.length > 0 ? suggestionsWithUsers.map((ride: any) => (
-                    <Card key={ride.id} className="flex flex-col">
-                        <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <Avatar>
-                                        <AvatarImage src={placeholderImages.find(p => p.id === 'avatar2')?.imageUrl} />
-                                        <AvatarFallback>{ride.user.name?.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                        <CardTitle className="text-lg">{ride.user.name}</CardTitle>
-                                        <CardDescription>{ride.user.city}</CardDescription>
-                                    </div>
-                                </div>
-                                <Badge variant={ride.type === 'pickup' ? 'secondary' : 'outline'}>
-                                    {ride.type === 'pickup' ? 'Offering Ride' : 'Needs Ride'}
-                                </Badge>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="flex-1">
-                            <div className="flex items-center gap-4 text-sm font-semibold">
-                                <span>{ride.type === 'pickup' ? ride.startingLocation : ride.pickupLocation}</span>
-                                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                                <span>{ride.destination}</span>
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-2">
-                               {new Date(ride.dateTime).toLocaleString('en-US', {
-                                    weekday: 'long',
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric',
-                                    hour: 'numeric',
-                                    minute: 'numeric'
-                                })}
-                            </p>
-                            <div className="flex items-center gap-2 mt-4 text-sm">
-                                {ride.type === 'pickup' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
-                                <span>{ride.type === 'pickup' ? `Vehicle: ${ride.vehicleType}` : 'Passenger request'}</span>
-                            </div>
-                        </CardContent>
-                        <CardFooter className="flex gap-2">
-                            <Button className="w-full">Send Request</Button>
-                            <Button variant="outline" asChild>
-                               <Link href="/route-optimizer">Optimize</Link>
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                )) : (
-                    <p>No ride suggestions found at the moment. Check back later!</p>
+                {isLoading ? (
+                    Array.from({ length: 6 }).map((_, i) => <SuggestionSkeleton key={i} />)
+                ) : suggestions.length > 0 ? (
+                    suggestions.map((ride: CombinedRequest) => (
+                        <SuggestionCard key={ride.id} ride={ride} />
+                    ))
+                ) : (
+                    <div className="col-span-full text-center py-16">
+                        <Search className="mx-auto h-16 w-16 text-muted-foreground" />
+                        <h2 className="mt-4 text-2xl font-semibold">No Suggestions Yet</h2>
+                        <p className="mt-2 text-muted-foreground">Check back later for new ride offers and requests in your area.</p>
+                    </div>
                 )}
             </div>
         </div>
+    );
+}
+
+function SuggestionCard({ ride }: { ride: CombinedRequest }) {
+    const firestore = useFirestore();
+    const userProfileRef = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return doc(firestore, 'users', ride.userProfileId);
+    }, [firestore, ride.userProfileId]);
+
+    const { data: userProfile, isLoading } = useDoc<UserProfile>(userProfileRef);
+
+    const fromLocation = ride.type === 'pickup' ? ride.startingLocation : ride.pickupLocation;
+    const toLocation = ride.destination;
+
+    return (
+        <Card className="flex flex-col">
+            <CardHeader>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Avatar className="h-12 w-12">
+                            {isLoading ? <Skeleton className="h-full w-full rounded-full" /> : 
+                            <>
+                                <AvatarImage src={(placeholderImages.find(p=>p.id === 'avatar2')?.imageUrl)} />
+                                <AvatarFallback>{userProfile?.name?.charAt(0)}</AvatarFallback>
+                            </>
+                            }
+                        </Avatar>
+                        <div>
+                            {isLoading ? <Skeleton className="h-5 w-24" /> : <CardTitle className="text-lg">{userProfile?.name}</CardTitle>}
+                            {isLoading ? <Skeleton className="h-4 w-16 mt-1" /> : <CardDescription>{userProfile?.city}</CardDescription>}
+                        </div>
+                    </div>
+                    <Badge variant={ride.type === 'pickup' ? 'secondary' : 'outline'}>
+                        {ride.type === 'pickup' ? 'Offering' : 'Needs Ride'}
+                    </Badge>
+                </div>
+            </CardHeader>
+            <CardContent className="flex-1">
+                <div className="flex items-center gap-2 text-sm font-semibold truncate">
+                    <span className="truncate">{fromLocation}</span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="truncate">{toLocation}</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                   {new Date(ride.dateTime).toLocaleString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: 'numeric'
+                    })}
+                </p>
+                <div className="flex items-center gap-2 mt-4 text-sm font-medium">
+                    {ride.type === 'pickup' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
+                    <span>{ride.type === 'pickup' ? `Vehicle: ${ride.vehicleType}` : 'Passenger request'}</span>
+                </div>
+            </CardContent>
+            <CardFooter className="flex gap-2">
+                <Button className="w-full">Send Request</Button>
+                <Button variant="outline" asChild>
+                   <Link href="/route-optimizer">Optimize</Link>
+                </Button>
+            </CardFooter>
+        </Card>
     );
 }

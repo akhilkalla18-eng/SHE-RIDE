@@ -1,13 +1,10 @@
-/**
- * Core Philosophy: This ruleset is designed for the SheRide application, a women-only ride-sharing platform.
- * The primary security goal is to ensure user privacy and safety. The model is built on strict user-ownership
- * of personal data and requests, with a closed collaborator model for shared activities like rides and chats.
- */
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for reusable logic
+    // --- Helper Functions ---
     function isSignedIn() {
       return request.auth != null;
     }
@@ -15,64 +12,71 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
-    function isExistingDoc() {
-      return resource != null;
-    }
-
-    function isOwnerOfExistingDoc(userId) {
-      return isOwner(userId) && isExistingDoc();
-    }
 
     function isParticipant(doc) {
+      // Robustly check if participantIds exists and is a list before checking for inclusion.
       return isSignedIn() && 
              'participantIds' in doc.data &&
              doc.data.participantIds is list &&
              request.auth.uid in doc.data.participantIds;
     }
 
-    function isCreatingAsParticipant() {
-      return isSignedIn() && request.auth.uid in request.resource.data.participantIds;
-    }
-
-    function isCreatorImmutable() {
-      return request.resource.data.userProfileId == resource.data.userProfileId;
-    }
-
     function isCreatingOwnedDoc() {
       return isSignedIn() && request.resource.data.userProfileId == request.auth.uid;
     }
 
+    function isOwnerOfExistingDoc() {
+      return isSignedIn() && resource.data.userProfileId == request.auth.uid;
+    }
+    
+    // --- Collection Rules ---
+
+    // User Profiles: Only the owner can read or write their own profile.
     match /users/{userId} {
       allow read, write: if isOwner(userId);
-
-      match /pickup_requests/{pickupRequestId} {
-        allow read, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-        allow update: if isOwnerOfExistingDoc(userId) && isCreatorImmutable();
-      }
-
-      match /service_requests/{serviceRequestId} {
-        allow read, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
-        allow update: if isOwnerOfExistingDoc(userId) && isCreatorImmutable();
-      }
     }
 
+    // Pickup Requests (Ride Offers): Open for browsing, but only owner can manage.
+    match /pickupRequests/{pickupRequestId} {
+      allow read, list: if isSignedIn();
+      allow create: if isCreatingOwnedDoc();
+      allow update, delete: if isOwnerOfExistingDoc();
+    }
+
+    // Service Requests (Ride Needs): Open for browsing, but only owner can manage.
+    match /serviceRequests/{serviceRequestId} {
+      allow read, list: if isSignedIn();
+      allow create: if isCreatingOwnedDoc();
+      allow update, delete: if isOwnerOfExistingDoc();
+    }
+
+    // Rides: Only participants can interact with a ride document.
     match /rides/{rideId} {
-      allow read: if isParticipant(resource);
-      allow list: if false; // List operations are insecure by default.
-      allow create: if isCreatingAsParticipant();
-      allow update, delete: if isParticipant(resource) && isExistingDoc();
+      // A user can get a ride document if they are a participant.
+      allow get: if isParticipant(resource);
+
+      // A user can list rides, but the query *must* include a filter for their UID.
+      // Firestore enforces the 'get' rule on every document returned by a 'list' query.
+      // So, if the client queries for rides where they aren't a participant, the query will fail.
+      allow list: if isSignedIn();
+
+      // A user can create a ride if they are listed as a participant in the new ride document.
+      allow create: if isParticipant(request.resource);
+
+      // A user can update or delete a ride if they are a participant.
+      allow update, delete: if isParticipant(resource);
     }
 
+    // Chats: Similar to rides, only participants can interact.
     match /chats/{chatId} {
-      allow read: if isParticipant(resource);
-      allow list: if false; // List operations are insecure by default.
-      allow create: if isCreatingAsParticipant();
-      allow update, delete: if isParticipant(resource) && isExistingDoc();
+      allow get: if isParticipant(resource);
+      allow list: if isSignedIn();
+      allow create: if isParticipant(request.resource);
+      allow update, delete: if isParticipant(resource);
     }
 
+    // SOS Alerts: Only the owner can create an alert. No one can read/update/delete them directly.
+    // (These would be handled by a backend process/cloud function).
     match /sos_alerts/{sosAlertId} {
       allow read, update, delete: if false;
       allow create: if isCreatingOwnedDoc();

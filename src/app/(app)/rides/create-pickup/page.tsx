@@ -1,25 +1,72 @@
 "use client"
 
+import React from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
+import { useUser, useFirestore } from "@/firebase";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import type { PickupRequest } from "@/lib/schemas";
+import { Loader2 } from "lucide-react";
+
 
 export default function CreatePickupPage() {
     const { toast } = useToast();
     const router = useRouter();
+    const { user, isUserLoading } = useUser();
+    const firestore = useFirestore();
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        
-        toast({
-            title: "Pickup Request Created",
-            description: "Your ride offer has been posted. We'll notify you about matching requests.",
-        });
-        router.push("/dashboard");
+        if (!user || !firestore) {
+            toast({
+                variant: "destructive",
+                title: "Not Logged In",
+                description: "You must be logged in to offer a ride.",
+            });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const formData = new FormData(e.currentTarget);
+        const date = formData.get("date") as string;
+        const time = formData.get("time") as string;
+
+        const newRequest: Omit<PickupRequest, "id"> = {
+            userProfileId: user.uid,
+            startingLocation: formData.get("start-location") as string,
+            destination: formData.get("destination") as string,
+            dateTime: new Date(`${date}T${time}`).toISOString(),
+            vehicleType: formData.get("vehicle-type") as 'Bike' | 'Scooty',
+            seatsAvailable: 1,
+            expectedCost: Number(formData.get("cost")) || 0,
+            routePreference: formData.get("route") as string || '',
+            status: 'open',
+            createdAt: serverTimestamp(),
+        };
+
+        try {
+            await addDoc(collection(firestore, "pickupRequests"), newRequest);
+            toast({
+                title: "Pickup Request Created",
+                description: "Your ride offer has been posted. We'll notify you about matching requests.",
+            });
+            router.push("/dashboard");
+        } catch (error) {
+            console.error("Error creating pickup request:", error);
+            toast({
+                variant: "destructive",
+                title: "Something Went Wrong",
+                description: "Could not create your pickup request. Please try again.",
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -59,8 +106,8 @@ export default function CreatePickupPage() {
                                         <SelectValue placeholder="Select vehicle" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="bike">Bike</SelectItem>
-                                        <SelectItem value="scooty">Scooty</SelectItem>
+                                        <SelectItem value="Bike">Bike</SelectItem>
+                                        <SelectItem value="Scooty">Scooty</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -77,7 +124,10 @@ export default function CreatePickupPage() {
                             <Label htmlFor="route">Route Preference (Optional)</Label>
                             <Input name="route" id="route" placeholder="e.g., Via Western Express Highway" />
                         </div>
-                        <Button type="submit" className="w-full md:w-auto md:ml-auto">Create Pickup Request</Button>
+                        <Button type="submit" className="w-full md:w-auto md:ml-auto" disabled={isSubmitting || isUserLoading}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isSubmitting ? "Posting..." : "Create Pickup Request"}
+                        </Button>
                     </form>
                 </CardContent>
             </Card>

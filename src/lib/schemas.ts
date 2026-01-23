@@ -10,7 +10,7 @@ export interface UserProfile {
    */
   name: string;
   /**
-   * User's phone number, used for OTP verification.
+   * User's phone number.
    */
   phoneNumber: string;
   /**
@@ -22,29 +22,17 @@ export interface UserProfile {
    */
   city: string;
   /**
-   * User's Aadhaar ID (optional).
-   */
-  aadhaarId?: string;
-  /**
-   * User's Driving License ID (optional).
+   * URL to the user's uploaded Driving License ID (optional).
    */
   drivingLicenseId?: string;
   /**
    * Indicates if the user's profile is verified by an admin.
    */
-  profileVerified?: boolean;
+  profileVerified: boolean;
   /**
-   * User's emergency contact phone number.
+   * User's emergency contact information.
    */
   emergencyContact?: string;
-  /**
-   * Indicates if the user is a rider (pickup provider).
-   */
-  isRider?: boolean;
-  /**
-   * Indicates if the user is a passenger (service requester).
-   */
-  isPassenger?: boolean;
 }
 export interface PickupRequest {
   /**
@@ -52,9 +40,9 @@ export interface PickupRequest {
    */
   id: string;
   /**
-   * UID of the rider creating the request.
+   * UID of the user creating the request.
    */
-  riderId: string;
+  userProfileId: string;
   /**
    * Starting location of the ride.
    */
@@ -64,13 +52,13 @@ export interface PickupRequest {
    */
   destination: string;
   /**
-   * Date and time of the ride.
+   * ISO string of the ride's date and time.
    */
   dateTime: string;
   /**
    * Type of vehicle (Bike / Scooty).
    */
-  vehicleType: string;
+  vehicleType: "Bike" | "Scooty";
   /**
    * Number of seats available (default 1).
    */
@@ -84,9 +72,13 @@ export interface PickupRequest {
    */
   routePreference?: string;
   /**
-   * The current status of the request (e.g., 'open', 'matched').
+   * The current status of the request (e.g., 'open', 'matched', 'cancelled').
    */
-  status: string;
+  status: "open" | "matched" | "cancelled";
+  /**
+   * Timestamp of when the request was created.
+   */
+  createdAt: any;
 }
 export interface ServiceRequest {
   /**
@@ -94,9 +86,9 @@ export interface ServiceRequest {
    */
   id: string;
   /**
-   * UID of the passenger creating the request.
+   * UID of the user creating the request.
    */
-  passengerId: string;
+  userProfileId: string;
   /**
    * Pickup location for the service.
    */
@@ -106,21 +98,25 @@ export interface ServiceRequest {
    */
   destination: string;
   /**
-   * Date and time for the service.
+   * ISO string of the service's date and time.
    */
   dateTime: string;
   /**
-   * Maximum amount willing to pay.
+   * Maximum amount the passenger is willing to pay.
    */
-  maxAmount: number;
+  maxAmountWillingToPay: number;
   /**
    * Passenger's preferred route.
    */
   preferredRoute?: string;
   /**
-   * The current status of the request (e.g., 'open', 'matched').
+   * The current status of the request (e.g., 'open', 'matched', 'cancelled').
    */
-  status: string;
+  status: "open" | "matched" | "cancelled";
+  /**
+   * Timestamp of when the request was created.
+   */
+  createdAt: any;
 }
 export interface Ride {
   /**
@@ -140,17 +136,21 @@ export interface Ride {
    */
   participantIds: string[];
   /**
-   * Status of the ride (Requested, Accepted, Confirmed, Completed, Cancelled).
+   * Status of the ride (requested, accepted, confirmed, completed, cancelled).
    */
-  status: string;
+  status: "requested" | "accepted" | "confirmed" | "completed" | "cancelled";
   /**
    * The agreed shared cost between the rider and passenger.
    */
   sharedCost?: number;
   /**
-   * The date and time of the confirmed ride.
+   * ISO string of the confirmed ride's date and time.
    */
   dateTime: string;
+  /**
+   * Timestamp of when the ride was created.
+   */
+  createdAt: any;
 }
 export interface Chat {
   /**
@@ -158,15 +158,19 @@ export interface Chat {
    */
   id: string;
   /**
-   * Reference to the Ride.
+   * Array containing the UIDs of all participants.
    */
-  rideId: string;
+  participantIds: string[];
   /**
    * Array of message objects in the chat.
    */
-  messages?: string[];
+  messages?: any[];
+  /**
+   * Timestamp of the last message sent.
+   */
+  lastMessageAt: any;
 }
-export interface SOSAlert {
+export interface SosAlert {
   /**
    * Unique identifier for the SOS alert.
    */
@@ -174,7 +178,7 @@ export interface SOSAlert {
   /**
    * UID of the user who triggered the alert.
    */
-  userId: string;
+  userProfileId: string;
   /**
    * Reference to the Ride during which the alert was triggered.
    */
@@ -182,13 +186,9 @@ export interface SOSAlert {
   /**
    * Timestamp when the alert was triggered.
    */
-  timestamp: string;
+  timestamp: any;
   /**
    * Location of the user when the alert was triggered (e.g., coordinates).
    */
   location: string;
-  /**
-   * Additional details about the emergency situation.
-   */
-  details?: string;
 }
