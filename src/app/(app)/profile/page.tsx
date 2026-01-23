@@ -188,7 +188,7 @@ export default function ProfilePage() {
                                         <h3 className="font-semibold text-amber-800 dark:text-amber-200">Get Verified</h3>
                                         <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">Upload an ID to get a 'Verified' badge on your profile for extra trust.</p>
                                         <div className="grid gap-2">
-                                            <Label htmlFor="id-upload">Aadhaar / College ID</Label>
+                                            <Label htmlFor="id-upload">Aadhaar / Driving License</Label>
                                             <Input id="id-upload" type="file" />
                                         </div>
                                     </div>

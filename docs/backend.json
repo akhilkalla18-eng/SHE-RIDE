@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -31,9 +32,9 @@
           "type": "string",
           "description": "User's Aadhaar ID (optional)."
         },
-        "collegeId": {
+        "drivingLicenseId": {
           "type": "string",
-          "description": "User's College ID (optional)."
+          "description": "User's Driving License ID (optional)."
         },
         "profileVerified": {
           "type": "boolean",

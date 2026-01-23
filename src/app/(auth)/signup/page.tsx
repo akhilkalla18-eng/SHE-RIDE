@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link"
@@ -102,7 +103,7 @@ export default function SignupPage() {
             <Input name="city" id="city" placeholder="Mumbai" required />
         </div>
         <div className="grid gap-2">
-            <Label htmlFor="id-upload">Aadhaar / College ID (Optional)</Label>
+            <Label htmlFor="id-upload">Aadhaar / Driving License (Optional)</Label>
             <Input name="id-upload" id="id-upload" type="file" />
             <p className="text-xs text-muted-foreground">Recommended for a 'Verified' badge.</p>
         </div>
