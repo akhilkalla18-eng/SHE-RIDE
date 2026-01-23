@@ -25,22 +25,29 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
-import { Bell, LifeBuoy, LogOut, TriangleAlert } from "lucide-react"
+import { Bell, LifeBuoy, LogOut, TriangleAlert, User } from "lucide-react"
 import { notifications } from "@/lib/data"
 import { useToast } from "@/hooks/use-toast"
-import { placeholderImages } from "@/lib/placeholder-images"
 import { useRouter } from "next/navigation"
-
-const user = {
-    photoURL: placeholderImages.find(p => p.id === 'avatar1')?.imageUrl,
-    displayName: "Priya",
-    email: "priya@example.com"
-};
-
+import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from "@/firebase";
+import { signOut } from "firebase/auth";
+import { doc } from "firebase/firestore";
+import type { UserProfile } from "@/lib/schemas";
+import { Skeleton } from "./ui/skeleton"
 
 export function AppHeader() {
     const { toast } = useToast()
     const router = useRouter();
+    const { user, isUserLoading } = useUser();
+    const auth = useAuth();
+    const firestore = useFirestore();
+
+    const userProfileRef = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return doc(firestore, "users", user.uid);
+    }, [firestore, user]);
+
+    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
     const handleSosClick = () => {
         toast({
@@ -49,13 +56,18 @@ export function AppHeader() {
             variant: "destructive",
         })
     }
+
     const handleLogout = () => {
-        toast({
-            title: "Logged Out",
-            description: "You have been successfully logged out.",
+        if (!auth) return;
+        signOut(auth).then(() => {
+            toast({
+                title: "Logged Out",
+                description: "You have been successfully logged out.",
+            });
+            router.push("/login");
         });
-        router.push("/login");
     }
+
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30 bg-background/80 backdrop-blur-sm">
       <SidebarTrigger className="md:hidden" />
@@ -113,10 +125,14 @@ export function AppHeader() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="secondary" size="icon" className="rounded-full">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.photoURL} alt={user?.displayName || "User"} />
-              <AvatarFallback>{user?.displayName?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
-            </Avatar>
+            {(isUserLoading || isProfileLoading) ? (
+                <Skeleton className="h-8 w-8 rounded-full" />
+            ) : (
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.photoURL || undefined} alt={userProfile?.name || "User"} />
+                  <AvatarFallback>{userProfile?.name?.charAt(0) || user?.email?.charAt(0) || <User />}</AvatarFallback>
+                </Avatar>
+            )}
             <span className="sr-only">Toggle user menu</span>
           </Button>
         </DropdownMenuTrigger>

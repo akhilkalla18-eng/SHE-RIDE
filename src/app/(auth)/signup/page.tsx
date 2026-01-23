@@ -8,24 +8,72 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
+import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc } from "firebase/firestore";
+import type { UserProfile } from "@/lib/schemas";
+
 
 export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
+  const auth = useAuth();
+  const firestore = useFirestore();
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+    const name = formData.get("full-name") as string;
+    const phoneNumber = formData.get("phone") as string;
+    const city = formData.get("city") as string;
 
-    // Simulate API call
-    setTimeout(() => {
+    if (!auth || !firestore) {
         toast({
-          title: "Account Created!",
-          description: "Welcome to SheRide. You'll be redirected.",
+            variant: "destructive",
+            title: "Error",
+            description: "Firebase not initialized. Please try again later.",
         });
-        router.push("/dashboard");
-    }, 1000);
+        setIsLoading(false);
+        return;
+    }
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      const userProfile: UserProfile = {
+        id: user.uid,
+        name,
+        email,
+        phoneNumber,
+        city,
+        profileVerified: false,
+      };
+
+      const userDocRef = doc(firestore, "users", user.uid);
+      setDocumentNonBlocking(userDocRef, userProfile, { merge: true });
+
+      toast({
+        title: "Account Created!",
+        description: "Welcome to SheRide. You'll be redirected.",
+      });
+      router.push("/dashboard");
+
+    } catch (error: any) {
+      const errorMessage = error.message || "An unexpected error occurred.";
+      console.error("Signup failed:", error.code, errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Signup Failed",
+        description: errorMessage,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

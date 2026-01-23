@@ -7,24 +7,50 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link"
 import { useRouter } from "next/navigation";
 import React from "react";
+import { useAuth } from "@/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
+  const auth = useAuth();
 
-  const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       setIsLoading(true);
-      
-      // Simulate API call
-      setTimeout(() => {
+      const formData = new FormData(e.currentTarget);
+      const email = formData.get("email") as string;
+      const password = formData.get("password") as string;
+
+      if (!auth) {
         toast({
-            title: "Login Successful!",
-            description: "You'll be redirected to your dashboard.",
+            variant: "destructive",
+            title: "Error",
+            description: "Firebase not initialized. Please try again later.",
         });
-        router.push("/dashboard");
-      }, 1000);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+          await signInWithEmailAndPassword(auth, email, password);
+          toast({
+              title: "Login Successful!",
+              description: "You'll be redirected to your dashboard.",
+          });
+          router.push("/dashboard");
+      } catch (error: any) {
+          const errorMessage = error.message || "Invalid credentials. Please try again.";
+          console.error("Login failed:", error.code, errorMessage);
+          toast({
+              variant: "destructive",
+              title: "Login Failed",
+              description: "Invalid credentials. Please try again.",
+          });
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   return (

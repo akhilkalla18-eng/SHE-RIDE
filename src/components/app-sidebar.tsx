@@ -22,8 +22,10 @@ import {
   Users,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { UserProfile } from "@/lib/schemas";
-import { placeholderImages } from "@/lib/placeholder-images";
+import type { UserProfile } from "@/lib/schemas";
+import { useUser, useDoc, useMemoFirebase, useFirestore } from "@/firebase";
+import { doc } from "firebase/firestore";
+import { Skeleton } from "./ui/skeleton";
 
 const menuItems = [
   {
@@ -63,20 +65,17 @@ const menuItems = [
   },
 ];
 
-const user = {
-    photoURL: placeholderImages.find(p => p.id === 'avatar1')?.imageUrl,
-};
-
-const userProfile: UserProfile = {
-    id: "1",
-    name: "Priya Sharma",
-    city: "Mumbai",
-    email: "priya@example.com",
-    phoneNumber: "+91 9876543210"
-};
-
 export function AppSidebar() {
   const pathname = usePathname();
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, "users", user.uid);
+  }, [firestore, user]);
+
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
   return (
     <Sidebar>
@@ -103,10 +102,18 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
-        {userProfile && (
+        {(isUserLoading || isProfileLoading) ? (
+            <div className="flex items-center gap-3 p-2">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="w-full space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                </div>
+            </div>
+        ) : userProfile && (
             <div className="flex items-center gap-3 p-2">
             <Avatar className="h-10 w-10">
-                <AvatarImage src={user?.photoURL} alt={userProfile.name} />
+                <AvatarImage src={user?.photoURL || undefined} alt={userProfile.name} />
                 <AvatarFallback>{userProfile.name?.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="overflow-hidden">

@@ -1,8 +1,9 @@
 export const firebaseConfig = {
-  "projectId": "studio-2556659494-baf7f",
-  "appId": "1:954815389864:web:de1a0b8358d1d34f7be29d",
-  "apiKey": "AIzaSyCCPZf8yIOiNKirsRbYPD-u1oDhqbsxhj0",
-  "authDomain": "studio-2556659494-baf7f.firebaseapp.com",
-  "measurementId": "",
-  "messagingSenderId": "954815389864"
+  apiKey: "AIzaSyA4lxhN1p2cxSdXJW2zxMApKNK6rZzI9PU",
+  authDomain: "she-ride-c0d13.firebaseapp.com",
+  projectId: "she-ride-c0d13",
+  storageBucket: "she-ride-c0d13.appspot.com",
+  messagingSenderId: "1044532211934",
+  appId: "1:1044532211934:web:383ad19c658744b886d24f",
+  measurementId: "G-YY1SW6CRNJ"
 };
