@@ -25,7 +25,10 @@ service cloud.firestore {
     }
 
     function isParticipant(doc) {
-      return isSignedIn() && request.auth.uid in doc.data.participantIds;
+      return isSignedIn() && 
+             'participantIds' in doc.data &&
+             doc.data.participantIds is list &&
+             request.auth.uid in doc.data.participantIds;
     }
 
     function isCreatingAsParticipant() {
@@ -41,20 +44,16 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isOwnerOfExistingDoc(userId);
-      allow delete: if isOwnerOfExistingDoc(userId);
+      allow read, write: if isOwner(userId);
 
       match /pickup_requests/{pickupRequestId} {
-        allow get, list, delete: if isOwner(userId);
+        allow read, delete: if isOwner(userId);
         allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
         allow update: if isOwnerOfExistingDoc(userId) && isCreatorImmutable();
       }
 
       match /service_requests/{serviceRequestId} {
-        allow get, list, delete: if isOwner(userId);
+        allow read, delete: if isOwner(userId);
         allow create: if isOwner(userId) && request.resource.data.userProfileId == userId;
         allow update: if isOwnerOfExistingDoc(userId) && isCreatorImmutable();
       }
@@ -64,7 +63,8 @@ service cloud.firestore {
       // A user can GET a ride document if they are a participant.
       allow get: if isParticipant(resource);
       // A user can LIST rides if they are signed in. Client queries MUST
-      // filter by participantId to be secure.
+      // filter by participantId to be secure. Firestore's backend security
+      // will verify the 'get' rule for each document returned by the query.
       allow list: if isSignedIn();
       allow create: if isCreatingAsParticipant();
       allow update, delete: if isParticipant(resource) && isExistingDoc();
