@@ -139,17 +139,16 @@ service cloud.firestore {
     /**
      * @description Rules for Ride documents, which are shared between participants.
      * @path /rides/{rideId}
-     * @allow (get) A user who is a participant in the ride, reading the ride details.
-     * @deny (get) A user trying to read the details of a ride they are not a part of.
-     * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'participantIds' array.
+     * @allow (read) A user who is a participant in the ride, reading the ride details or listing rides they are part of.
+     * @deny (read) A user trying to read the details of a ride they are not a part of.
+     * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'participantIds' array. Queries on this collection are only allowed if they constrain the results to rides where the user is a participant.
      */
     match /rides/{rideId} {
       // NOTE: These rules assume the 'Ride' document contains a 'participantIds' array field with the UIDs of all participants.
-      // This denormalized field is CRITICAL for these rules to function correctly.
-      allow get: if isParticipant(resource);
-      // Allow a user to query for rides they are a participant in.
-      // This enforces that any 'list' query on this collection MUST include a `where('participantIds', 'array-contains', request.auth.uid)` clause.
-      allow list: if request.auth.uid in resource.data.participantIds;
+      // The 'read' rule covers both 'get' and 'list' operations.
+      // For 'list' (queries), this rule requires that the query constrains the results to only documents
+      // where the user's ID is in the 'participantIds' array.
+      allow read: if isParticipant(resource);
       allow create: if isCreatingAsParticipant();
       allow update: if isParticipant(resource) && isExistingDoc();
       allow delete: if isParticipant(resource) && isExistingDoc();
@@ -158,13 +157,12 @@ service cloud.firestore {
     /**
      * @description Rules for Chat documents, which are private conversations between users.
      * @path /chats/{chatId}
-     * @allow (get) A user who is a participant in the chat, reading the conversation.
-     * @deny (update) A user trying to modify a chat conversation they are not a part of.
+     * @allow (read) A user who is a participant in the chat, reading the conversation.
+     * @deny (read) A user trying to modify a chat conversation they are not a part of.
      * @principle Implements a "Closed Collaborators" model. Access is granted only to users listed in the 'participantIds' array.
      */
     match /chats/{chatId} {
-      allow get: if isParticipant(resource);
-      allow list: if request.auth.uid in resource.data.participantIds;
+      allow read: if isParticipant(resource);
       allow create: if isCreatingAsParticipant();
       allow update: if isParticipant(resource) && isExistingDoc();
       allow delete: if isParticipant(resource) && isExistingDoc();
