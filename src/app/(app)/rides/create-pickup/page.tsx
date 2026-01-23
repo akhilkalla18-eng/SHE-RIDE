@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore } from "@/firebase";
+import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import type { PickupRequest } from "@/lib/schemas";
 import { Loader2 } from "lucide-react";
@@ -59,11 +59,14 @@ export default function CreatePickupPage() {
             router.push("/dashboard");
         } catch (error) {
             console.error("Error creating pickup request:", error);
-            toast({
-                variant: "destructive",
-                title: "Something Went Wrong",
-                description: "Could not create your pickup request. Please try again.",
+            const contextualError = new FirestorePermissionError({
+              path: 'pickupRequests',
+              operation: 'create',
+              requestResourceData: newRequest
             });
+            errorEmitter.emit('permission-error', contextualError);
+            // A toast is not required here because the FirebaseErrorListener
+            // will catch the emitted error and display a detailed overlay.
         } finally {
             setIsSubmitting(false);
         }

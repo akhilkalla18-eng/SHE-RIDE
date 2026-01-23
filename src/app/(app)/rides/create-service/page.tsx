@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useFirestore } from "@/firebase";
+import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import type { ServiceRequest } from "@/lib/schemas";
 import { Loader2 } from "lucide-react";
@@ -55,11 +55,14 @@ export default function CreateServicePage() {
             router.push("/dashboard");
         } catch (error) {
             console.error("Error creating service request:", error);
-            toast({
-                variant: "destructive",
-                title: "Something Went Wrong",
-                description: "Could not create your service request. Please try again.",
+             const contextualError = new FirestorePermissionError({
+              path: 'serviceRequests',
+              operation: 'create',
+              requestResourceData: newRequest
             });
+            errorEmitter.emit('permission-error', contextualError);
+            // A toast is not required here because the FirebaseErrorListener
+            // will catch the emitted error and display a detailed overlay.
         } finally {
             setIsSubmitting(false);
         }
