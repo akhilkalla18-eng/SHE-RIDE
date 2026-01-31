@@ -57,7 +57,8 @@
         "expectedCost": { "type": "number", "description": "Expected cost of the ride (optional)." },
         "routePreference": { "type": "string", "description": "Rider's preferred route." },
         "status": { "type": "string", "enum": ["open", "matched", "cancelled"], "description": "The current status of the request (e.g., 'open', 'matched', 'cancelled')." },
-        "createdAt": { "type": "any", "description": "Timestamp of when the request was created."}
+        "createdAt": { "type": "any", "description": "Timestamp of when the request was created."},
+        "rejectedBy": { "type": "array", "items": { "type": "string" }, "description": "List of user IDs who have rejected this request." }
       },
       "required": ["userProfileId", "startingLocation", "destination", "dateTime", "vehicleType", "seatsAvailable", "status", "createdAt"]
     },
@@ -74,7 +75,8 @@
         "maxAmountWillingToPay": { "type": "number", "description": "Maximum amount the passenger is willing to pay." },
         "preferredRoute": { "type": "string", "description": "Passenger's preferred route." },
         "status": { "type": "string", "enum": ["open", "matched", "cancelled"], "description": "The current status of the request (e.g., 'open', 'matched', 'cancelled')." },
-         "createdAt": { "type": "any", "description": "Timestamp of when the request was created."}
+         "createdAt": { "type": "any", "description": "Timestamp of when the request was created."},
+         "rejectedBy": { "type": "array", "items": { "type": "string" }, "description": "List of user IDs who have rejected this request." }
       },
       "required": ["userProfileId", "pickupLocation", "destination", "dateTime", "maxAmountWillingToPay", "status", "createdAt"]
     },

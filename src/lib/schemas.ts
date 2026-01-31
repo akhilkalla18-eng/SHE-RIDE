@@ -79,6 +79,10 @@ export interface PickupRequest {
    * Timestamp of when the request was created.
    */
   createdAt: any;
+  /**
+   * List of user IDs who have rejected this request.
+   */
+  rejectedBy?: string[];
 }
 export interface ServiceRequest {
   /**
@@ -117,6 +121,10 @@ export interface ServiceRequest {
    * Timestamp of when the request was created.
    */
   createdAt: any;
+  /**
+   * List of user IDs who have rejected this request.
+   */
+  rejectedBy?: string[];
 }
 export interface Ride {
   /**

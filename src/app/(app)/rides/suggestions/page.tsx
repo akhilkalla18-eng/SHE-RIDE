@@ -10,9 +10,8 @@ import { useUser, useFirestore, useCollection, useDoc, errorEmitter, FirestorePe
 import { placeholderImages } from "@/lib/placeholder-images";
 import { UserProfile, PickupRequest, ServiceRequest, Ride } from "@/lib/schemas";
 import { ArrowRight, Bike, Search, User } from "lucide-react";
-import Link from "next/link";
 import React from "react";
-import { collection, query, where, doc, addDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { collection, query, where, doc, addDoc, serverTimestamp, updateDoc, arrayUnion } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 type CombinedRequest = (PickupRequest | ServiceRequest) & { type: 'pickup' | 'service' };
@@ -68,9 +67,9 @@ export default function SuggestionsPage() {
     const suggestions = React.useMemo(() => {
         if (!user || (!pickupRequests && !serviceRequests)) return [];
         
-        // Filter out own requests on the client
-        const otherPickups = pickupRequests?.filter(r => r.userProfileId !== user.uid) || [];
-        const otherServices = serviceRequests?.filter(r => r.userProfileId !== user.uid) || [];
+        // Filter out own requests and rejected requests on the client
+        const otherPickups = pickupRequests?.filter(r => r.userProfileId !== user.uid && !r.rejectedBy?.includes(user.uid)) || [];
+        const otherServices = serviceRequests?.filter(r => r.userProfileId !== user.uid && !r.rejectedBy?.includes(user.uid)) || [];
 
         const combined: CombinedRequest[] = [
             ...(otherPickups.map(r => ({ ...r, type: 'pickup' as const }))),
@@ -115,6 +114,7 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
     const { user } = useUser();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [isRejecting, setIsRejecting] = React.useState(false);
 
     const userProfileRef = React.useMemo(() => {
         if (!firestore) return null;
@@ -125,6 +125,35 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
 
     const fromLocation = ride.type === 'pickup' ? ride.startingLocation : ride.pickupLocation;
     const toLocation = ride.destination;
+
+    const handleReject = async () => {
+        if (!user || !firestore) {
+            toast({ variant: "destructive", title: "You must be logged in." });
+            return;
+        }
+        setIsRejecting(true);
+        try {
+            const requestRef = doc(firestore, ride.type === 'service' ? 'serviceRequests' : 'pickupRequests', ride.id);
+            await updateDoc(requestRef, {
+                rejectedBy: arrayUnion(user.uid)
+            });
+            toast({
+                title: "Suggestion Hidden",
+                description: "You will no longer see this suggestion.",
+            });
+        } catch (error) {
+            console.error("Error rejecting suggestion:", error);
+            const path = `${ride.type === 'service' ? 'serviceRequests' : 'pickupRequests'}/${ride.id}`;
+            const contextualError = new FirestorePermissionError({
+              path: path,
+              operation: 'update',
+              requestResourceData: { rejectedBy: `arrayUnion('${user.uid}')` }
+            });
+            errorEmitter.emit('permission-error', contextualError);
+        } finally {
+            setIsRejecting(false);
+        }
+    };
 
     const handleRequestOrAccept = async () => {
         if (!user || !firestore) {
@@ -232,11 +261,11 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
                 </div>
             </CardContent>
             <CardFooter className="flex gap-2">
-                <Button className="w-full" onClick={handleRequestOrAccept} disabled={isSubmitting}>
+                <Button className="w-full" onClick={handleRequestOrAccept} disabled={isSubmitting || isRejecting}>
                     {isSubmitting ? "Submitting..." : (ride.type === 'pickup' ? 'Send Request' : 'Accept')}
                 </Button>
-                <Button variant="outline" asChild>
-                   <Link href="/route-optimizer">Optimize</Link>
+                <Button variant="outline" className="w-full" onClick={handleReject} disabled={isSubmitting || isRejecting}>
+                   {isRejecting ? "Rejecting..." : "Reject"}
                 </Button>
             </CardFooter>
         </Card>
