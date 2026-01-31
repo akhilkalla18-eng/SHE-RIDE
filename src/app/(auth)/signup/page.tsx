@@ -108,13 +108,21 @@ export default function SignupPage() {
       router.push("/dashboard");
 
     } catch (authError: any) {
-      // This catches errors from createUserWithEmailAndPassword
-      const errorMessage = authError.message || "An unexpected error occurred.";
-      console.error("Signup failed:", authError.code, errorMessage);
+      let title = "Signup Failed";
+      let description = "An unexpected error occurred. Please try again.";
+
+      if (authError.code === 'auth/email-already-in-use') {
+          title = "Email In Use";
+          description = "This email is already registered. Please log in or use a different email address.";
+      } else {
+          console.error("Signup failed:", authError.code, authError.message);
+          description = authError.message;
+      }
+      
       toast({
         variant: "destructive",
-        title: "Signup Failed",
-        description: errorMessage,
+        title: title,
+        description: description,
       });
     } finally {
       if(!user) { // Only set loading to false if we didn't succeed and redirect
