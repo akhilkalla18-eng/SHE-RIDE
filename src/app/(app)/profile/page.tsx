@@ -66,8 +66,10 @@ export default function ProfilePage() {
         const emergencyName = formData.get("emergency-name") as string;
         const emergencyPhone = formData.get("emergency-phone") as string;
         
+        const emergencyContact = (emergencyName && emergencyPhone) ? `${emergencyName} (${emergencyPhone})` : "";
+
         const updatedData = {
-            emergencyContact: `${emergencyName} (${emergencyPhone})`,
+            emergencyContact: emergencyContact,
         };
 
         try {

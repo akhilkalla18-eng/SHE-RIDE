@@ -75,9 +75,12 @@ export default function SignupPage() {
         phoneNumber,
         city,
         profileVerified: false,
-        drivingLicenseId: drivingLicenseUrl,
         emergencyContact: "",
       };
+
+      if (drivingLicenseUrl) {
+        userProfile.drivingLicenseId = drivingLicenseUrl;
+      }
 
       try {
         const userDocRef = doc(firestore, "users", user.uid);
