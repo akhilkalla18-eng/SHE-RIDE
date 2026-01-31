@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
-import { useAuth, useFirestore, useStorage } from "@/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { useAuth, useFirestore, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { createUserWithEmailAndPassword, User } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { UserProfile } from "@/lib/schemas";
@@ -45,9 +45,11 @@ export default function SignupPage() {
         return;
     }
 
+    let user: User | null = null;
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      user = userCredential.user;
 
       let drivingLicenseUrl: string | undefined = undefined;
       if (fileToUpload && storage) {
@@ -61,7 +63,7 @@ export default function SignupPage() {
             toast({
                 variant: "destructive",
                 title: "ID Upload Failed",
-                description: `Your account was created, but ID upload failed. You can add it later from your profile. Error: ${errorMessage}`,
+                description: `Your account was created, but ID upload failed. You can add it later. Error: ${errorMessage}`,
             });
         }
       }
@@ -77,8 +79,27 @@ export default function SignupPage() {
         emergencyContact: "",
       };
 
-      const userDocRef = doc(firestore, "users", user.uid);
-      await setDoc(userDocRef, userProfile);
+      try {
+        const userDocRef = doc(firestore, "users", user.uid);
+        await setDoc(userDocRef, userProfile);
+      } catch (firestoreError: any) {
+        console.error("Failed to create user profile document:", firestoreError);
+        // Manually trigger the global error handler for better debugging
+        const contextualError = new FirestorePermissionError({
+          path: `users/${user.uid}`,
+          operation: 'create',
+          requestResourceData: userProfile
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        
+        toast({
+            variant: "destructive",
+            title: "Signup Incomplete",
+            description: "Your account was created, but we failed to save your profile data. Please try signing up again.",
+        });
+        setIsLoading(false);
+        return; // Stop execution
+      }
 
       toast({
         title: "Account Created!",
@@ -86,16 +107,19 @@ export default function SignupPage() {
       });
       router.push("/dashboard");
 
-    } catch (error: any) {
-      const errorMessage = error.message || "An unexpected error occurred.";
-      console.error("Signup failed:", error.code, errorMessage);
+    } catch (authError: any) {
+      // This catches errors from createUserWithEmailAndPassword
+      const errorMessage = authError.message || "An unexpected error occurred.";
+      console.error("Signup failed:", authError.code, errorMessage);
       toast({
         variant: "destructive",
         title: "Signup Failed",
         description: errorMessage,
       });
     } finally {
-      setIsLoading(false);
+      if(!user) { // Only set loading to false if we didn't succeed and redirect
+         setIsLoading(false);
+      }
     }
   };
 
