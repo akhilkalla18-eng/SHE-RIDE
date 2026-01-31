@@ -124,13 +124,21 @@ export interface Ride {
    */
   id: string;
   /**
-   * Reference to the PickupRequest.
+   * UID of the user who is driving.
    */
-  pickupRequestId: string;
+  driverId: string;
   /**
-   * Reference to the ServiceRequest.
+   * UID of the user who is the passenger.
    */
-  serviceRequestId: string;
+  passengerId: string;
+  /**
+   * Reference to the PickupRequest, if the ride originated from one.
+   */
+  pickupRequestId?: string;
+  /**
+   * Reference to the ServiceRequest, if the ride originated from one.
+   */
+  serviceRequestId?: string;
   /**
    * Array containing the UIDs of both the rider and the passenger.
    */
@@ -142,7 +150,7 @@ export interface Ride {
   /**
    * The agreed shared cost between the rider and passenger.
    */
-  sharedCost?: number;
+  sharedCost: number;
   /**
    * ISO string of the confirmed ride's date and time.
    */
@@ -151,6 +159,14 @@ export interface Ride {
    * Timestamp of when the ride was created.
    */
   createdAt: any;
+  /**
+   * The starting location of the ride.
+   */
+  fromLocation: string;
+  /**
+   * The destination of the ride.
+   */
+  toLocation: string;
 }
 export interface Chat {
   /**

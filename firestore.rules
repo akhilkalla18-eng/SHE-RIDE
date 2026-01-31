@@ -23,29 +23,37 @@ service cloud.firestore {
     // --- Rules for Ride Offers ---
     match /pickupRequests/{pickupRequestId} {
       // READ: Any authenticated user can read all ride offers.
-      // This is necessary for the "Ride Suggestions" page to work.
       allow read: if request.auth != null;
 
       // CREATE: An authenticated user can create a ride offer.
-      // The `userProfileId` in the document must match their UID.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
 
-      // UPDATE, DELETE: A user can only update or delete their OWN ride offers.
-      allow update, delete: if request.auth != null && resource.data.userProfileId == request.auth.uid;
+      // UPDATE: A user can update their own offer, OR another user can update the status to 'matched'.
+      allow update: if request.auth != null && (
+                      (resource.data.userProfileId == request.auth.uid) ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'matched')
+                    );
+      
+      // DELETE: A user can only delete their OWN ride offers.
+      allow delete: if request.auth != null && resource.data.userProfileId == request.auth.uid;
     }
 
     // --- Rules for Ride Requests ---
     match /serviceRequests/{serviceRequestId} {
       // READ: Any authenticated user can read all ride requests.
-      // This is necessary for the "Ride Suggestions" page to work.
       allow read: if request.auth != null;
 
       // CREATE: An authenticated user can create a ride request.
-      // The `userProfileId` in the document must match their UID.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
       
-      // UPDATE, DELETE: A user can only update or delete their OWN ride requests.
-      allow update, delete: if request.auth != null && resource.data.userProfileId == request.auth.uid;
+      // UPDATE: A user can update their own request, OR another user can update the status to 'matched'.
+      allow update: if request.auth != null && (
+                      (resource.data.userProfileId == request.auth.uid) ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'matched')
+                    );
+
+      // DELETE: A user can only delete their OWN ride requests.
+      allow delete: if request.auth != null && resource.data.userProfileId == request.auth.uid;
     }
 
     // --- Rules for Confirmed Rides ---

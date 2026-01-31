@@ -84,15 +84,19 @@
       "description": "Represents a confirmed ride between users.",
       "properties": {
         "id": { "type": "string", "description": "Unique identifier for the ride." },
-        "pickupRequestId": { "type": "string", "description": "Reference to the PickupRequest." },
-        "serviceRequestId": { "type": "string", "description": "Reference to the ServiceRequest." },
+        "driverId": { "type": "string", "description": "UID of the user who is driving." },
+        "passengerId": { "type": "string", "description": "UID of the user who is the passenger." },
+        "pickupRequestId": { "type": "string", "description": "Reference to the PickupRequest, if the ride originated from one." },
+        "serviceRequestId": { "type": "string", "description": "Reference to the ServiceRequest, if the ride originated from one." },
         "participantIds": { "type": "array", "items": { "type": "string" }, "description": "Array containing the UIDs of both the rider and the passenger." },
         "status": { "type": "string", "enum": ["requested", "accepted", "confirmed", "completed", "cancelled"], "description": "Status of the ride (requested, accepted, confirmed, completed, cancelled)." },
         "sharedCost": { "type": "number", "description": "The agreed shared cost between the rider and passenger." },
         "dateTime": { "type": "string", "description": "ISO string of the confirmed ride's date and time." },
-        "createdAt": { "type": "any", "description": "Timestamp of when the ride was created."}
+        "createdAt": { "type": "any", "description": "Timestamp of when the ride was created."},
+        "fromLocation": { "type": "string", "description": "The starting location of the ride."},
+        "toLocation": { "type": "string", "description": "The destination of the ride."}
       },
-      "required": ["pickupRequestId", "serviceRequestId", "participantIds", "status", "dateTime", "createdAt"]
+      "required": ["driverId", "passengerId", "participantIds", "status", "dateTime", "createdAt", "sharedCost", "fromLocation", "toLocation"]
     },
     "Chat": {
       "title": "Chat",

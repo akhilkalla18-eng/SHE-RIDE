@@ -82,7 +82,7 @@ export default function Dashboard() {
     }, [firestore]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
     
-    const upcomingRides = React.useMemo(() => rides?.filter(r => r.status === 'confirmed' || r.status === 'accepted') || [], [rides]);
+    const upcomingRides = React.useMemo(() => rides?.filter(r => r.status === 'confirmed' || r.status === 'accepted' || r.status === 'requested') || [], [rides]);
     const completedRidesCount = React.useMemo(() => rides?.filter(r => r.status === 'completed').length || 0, [rides]);
     
     const newSuggestionsCount = React.useMemo(() => {
@@ -182,9 +182,9 @@ export default function Dashboard() {
           <Card className="xl:col-span-2">
             <CardHeader className="flex flex-row items-center">
               <div className="grid gap-2">
-                <CardTitle>Upcoming Confirmed Rides</CardTitle>
+                <CardTitle>Upcoming &amp; Requested Rides</CardTitle>
                 <CardDescription>
-                  Your scheduled journeys with other members.
+                  Your scheduled journeys and pending requests.
                 </CardDescription>
               </div>
               <Button asChild size="sm" className="ml-auto gap-1">
@@ -215,7 +215,7 @@ export default function Dashboard() {
                       {upcomingRides.map((ride: Ride) => (
                          <TableRow key={ride.id}>
                             <TableCell>
-                                <Badge variant={ride.status === 'confirmed' ? 'default' : 'secondary'}>{ride.status}</Badge>
+                                <Badge variant={ride.status === 'confirmed' ? 'default' : 'secondary'} className="capitalize">{ride.status}</Badge>
                             </TableCell>
                             <TableCell className="font-medium">
                                 {new Date(ride.dateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' })}
