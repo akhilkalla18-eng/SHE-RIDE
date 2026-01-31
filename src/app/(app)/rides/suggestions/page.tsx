@@ -45,20 +45,29 @@ export default function SuggestionsPage() {
     const firestore = useFirestore();
 
     const pickupRequestsQuery = React.useMemo(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "pickupRequests"), where("status", "==", "open"));
-    }, [firestore]);
+        if (!user || !firestore) return null;
+        // Query for pickup requests from other users
+        return query(
+          collection(firestore, "pickupRequests"), 
+          where("status", "==", "open")
+        );
+    }, [firestore, user]);
     const {data: pickupRequests, isLoading: arePickupsLoading} = useCollection<PickupRequest>(pickupRequestsQuery);
 
     const serviceRequestsQuery = React.useMemo(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "serviceRequests"), where("status", "==", "open"));
-    }, [firestore]);
+        if (!user || !firestore) return null;
+        // Query for service requests from other users
+        return query(
+          collection(firestore, "serviceRequests"), 
+          where("status", "==", "open")
+        );
+    }, [firestore, user]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
 
     const suggestions = React.useMemo(() => {
         if (!user || (!pickupRequests && !serviceRequests)) return [];
         
+        // Filter out own requests on the client
         const otherPickups = pickupRequests?.filter(r => r.userProfileId !== user.uid) || [];
         const otherServices = serviceRequests?.filter(r => r.userProfileId !== user.uid) || [];
 
@@ -156,7 +165,9 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
                 </div>
             </CardContent>
             <CardFooter className="flex gap-2">
-                <Button className="w-full">Send Request</Button>
+                <Button className="w-full">
+                    {ride.type === 'pickup' ? 'Send Request' : 'Accept'}
+                </Button>
                 <Button variant="outline" asChild>
                    <Link href="/route-optimizer">Optimize</Link>
                 </Button>
@@ -164,5 +175,3 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
         </Card>
     );
 }
-
-    
