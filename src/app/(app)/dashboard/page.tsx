@@ -10,6 +10,10 @@ import {
   Users,
   Car,
   Search,
+  Hourglass,
+  CheckCircle,
+  PartyPopper,
+  CircleDot,
 } from "lucide-react"
 import {
     Bar,
@@ -18,7 +22,7 @@ import {
     XAxis,
     YAxis,
   } from "recharts"
-import { doc, collection, query, where } from "firebase/firestore"
+import { doc, collection, query, where, orderBy } from "firebase/firestore"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -43,6 +47,7 @@ import { Input } from "@/components/ui/input"
 import { useUser, useFirestore, useDoc, useCollection } from "@/firebase"
 import type { UserProfile, Ride, PickupRequest, ServiceRequest } from "@/lib/schemas"
 import { placeholderImages } from "@/lib/placeholder-images"
+import { cn } from "@/lib/utils"
 
 const EmptyState = ({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) => (
     <div className="text-center py-8">
@@ -85,6 +90,25 @@ export default function Dashboard() {
     }, [firestore]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
     
+    const myPickupRequestsQuery = React.useMemo(() => {
+        if (!user || !firestore) return null;
+        return query(collection(firestore, "pickupRequests"), where("userProfileId", "==", user.uid), orderBy("createdAt", "desc"));
+    }, [firestore, user]);
+    const { data: myPickupRequests, isLoading: areMyPickupsLoading } = useCollection<PickupRequest>(myPickupRequestsQuery);
+    
+    const latestActiveOffer = React.useMemo(() => {
+        if (!myPickupRequests) return null;
+        return myPickupRequests.find(req => req.status !== 'cancelled') || null;
+    }, [myPickupRequests]);
+
+    const matchedRideQuery = React.useMemo(() => {
+        if (!firestore || !latestActiveOffer || latestActiveOffer.status !== 'matched') return null;
+        return query(collection(firestore, "rides"), where("pickupRequestId", "==", latestActiveOffer.id), where("driverId", "==", user?.uid));
+    }, [firestore, latestActiveOffer, user?.uid]);
+    const { data: matchedRides, isLoading: isMatchedRideLoading } = useCollection<Ride>(matchedRideQuery);
+    const latestMatchedRide = React.useMemo(() => (matchedRides && matchedRides[0]) || null, [matchedRides]);
+
+
     const upcomingRides = React.useMemo(() => {
         const allUpcoming = rides?.filter(r => r.status === 'confirmed' || r.status === 'accepted' || r.status === 'requested') || [];
         if (!searchTerm.trim()) {
@@ -191,7 +215,12 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        <div className="grid gap-4 md:gap-8">
+        <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
+            <MyRideStatusCard 
+                offer={latestActiveOffer} 
+                ride={latestMatchedRide}
+                isLoading={areMyPickupsLoading || isMatchedRideLoading}
+            />
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -271,6 +300,133 @@ export default function Dashboard() {
   )
 }
 
+function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | null, ride: Ride | null, isLoading: boolean }) {
+    
+    let step: 'pending' | 'confirmed' | 'completed' | null = null;
+    let statusText = "No Active Ride";
+    
+    if (offer) {
+        if (offer.status === 'open') {
+            step = 'pending';
+            statusText = 'Ride Pending';
+        } else if (offer.status === 'matched' && ride) {
+            if (ride.status === 'completed') {
+                step = 'completed';
+                statusText = 'Ride Completed';
+            } else if (!ride.status.startsWith('cancelled')) {
+                step = 'confirmed';
+                statusText = 'Ride Confirmed';
+            }
+        }
+    }
+    
+    const rideDetails = ride || offer;
+
+    if (isLoading) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>My Ride Status</CardTitle>
+                    <CardDescription>Track the progress of your latest offered ride.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-6 w-1/2" />
+                </CardContent>
+            </Card>
+        );
+    }
+    
+    if (!step || !rideDetails) {
+        return (
+            <Card className="flex flex-col items-center justify-center min-h-[300px] md:min-h-full">
+                <CardHeader className="text-center">
+                    <CardTitle>My Ride Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <EmptyState
+                        title="No Active Rides"
+                        description="You haven't offered any rides yet."
+                        icon={CircleDot}
+                    />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>My Ride Status</CardTitle>
+                        <CardDescription>Track the progress of your latest offered ride.</CardDescription>
+                    </div>
+                    <Badge variant={
+                        step === 'completed' ? 'default' : 
+                        step === 'confirmed' ? 'secondary' : 'destructive'
+                    } className={cn(step==='pending' && 'bg-orange-500 text-white')}>{statusText}</Badge>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
+                        <div className="font-medium truncate pr-2">{rideDetails.fromLocation || rideDetails.startingLocation}</div>
+                        <ArrowUpRight className="h-4 w-4 text-primary flex-shrink-0 mx-2"/>
+                        <div className="font-medium truncate pl-2 text-right">{rideDetails.toLocation || rideDetails.destination}</div>
+                    </div>
+                     <div className="text-xs text-muted-foreground p-2">
+                        <span>{new Date(rideDetails.dateTime).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        {' - '}
+                        <span>₹{rideDetails.sharedCost || rideDetails.expectedCost}</span>
+                    </div>
+                </div>
+                <RideProgressBar currentStep={step} />
+            </CardContent>
+        </Card>
+    );
+}
+
+function RideProgressBar({ currentStep }: { currentStep: 'pending' | 'confirmed' | 'completed' }) {
+    const steps = [
+        { name: 'Pending', icon: Hourglass, key: 'pending' },
+        { name: 'Confirmed', icon: CheckCircle, key: 'confirmed' },
+        { name: 'Completed', icon: PartyPopper, key: 'completed' },
+    ];
+    const currentStepIndex = steps.findIndex(s => s.key === currentStep);
+
+    return (
+        <div className="relative">
+            <div className="absolute left-0 top-1/2 w-full h-0.5 bg-muted -translate-y-1/2" aria-hidden="true">
+                 <div className="absolute left-0 top-0 h-full bg-primary transition-all duration-500" style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }} />
+            </div>
+            <ol className="relative flex justify-between w-full">
+                {steps.map((step, index) => {
+                    const isCompleted = index < currentStepIndex;
+                    const isCurrent = index === currentStepIndex;
+                    return (
+                        <li key={step.name} className="flex flex-col items-center text-center">
+                            <div className={cn(
+                                'relative flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-300',
+                                isCompleted ? 'bg-primary text-primary-foreground' :
+                                isCurrent ? 'bg-primary text-primary-foreground' : 'bg-muted border-2 border-dashed'
+                            )}>
+                                <step.icon className="w-5 h-5" />
+                            </div>
+                            <span className={cn(
+                                "mt-2 text-xs font-semibold",
+                                isCurrent ? "text-primary" : "text-muted-foreground"
+                            )}>{step.name}</span>
+                        </li>
+                    );
+                })}
+            </ol>
+        </div>
+    );
+}
+
+
 function AvatarGroup({ userIds }: { userIds: string[] }) {
     const firestore = useFirestore();
     // In a real app, you'd fetch user profiles for these IDs
@@ -289,7 +445,3 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
-
-    
-
-    
