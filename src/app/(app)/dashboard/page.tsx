@@ -22,7 +22,7 @@ import {
     XAxis,
     YAxis,
   } from "recharts"
-import { doc, collection, query, where, orderBy } from "firebase/firestore"
+import { doc, collection, query, where } from "firebase/firestore"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -92,13 +92,21 @@ export default function Dashboard() {
     
     const myPickupRequestsQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
-        return query(collection(firestore, "pickupRequests"), where("userProfileId", "==", user.uid), orderBy("createdAt", "desc"));
+        // Removed orderBy to avoid needing a composite index, which can cause permission errors if not set up.
+        // Sorting will be handled on the client.
+        return query(collection(firestore, "pickupRequests"), where("userProfileId", "==", user.uid));
     }, [firestore, user]);
     const { data: myPickupRequests, isLoading: areMyPickupsLoading } = useCollection<PickupRequest>(myPickupRequestsQuery);
     
     const latestActiveOffer = React.useMemo(() => {
         if (!myPickupRequests) return null;
-        return myPickupRequests.find(req => req.status !== 'cancelled') || null;
+        // Sort requests by creation date in descending order to find the latest one.
+        const sortedRequests = [...myPickupRequests].sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+            return dateB - dateA;
+        });
+        return sortedRequests.find(req => req.status !== 'cancelled') || null;
     }, [myPickupRequests]);
 
     const matchedRideQuery = React.useMemo(() => {
@@ -445,3 +453,5 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    

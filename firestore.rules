@@ -22,8 +22,12 @@ service cloud.firestore {
 
     // --- Rules for Ride Offers ---
     match /pickupRequests/{pickupRequestId} {
-      // READ: Any authenticated user can read all ride offers.
-      allow read: if request.auth != null;
+      // GET: Any authenticated user can get a single ride offer.
+      allow get: if request.auth != null;
+
+      // LIST: Any authenticated user can list ride offers.
+      // The client-side queries must be simple enough not to require composite indexes.
+      allow list: if request.auth != null;
 
       // CREATE: An authenticated user can create a ride offer for themselves.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
@@ -45,8 +49,11 @@ service cloud.firestore {
 
     // --- Rules for Ride Requests ---
     match /serviceRequests/{serviceRequestId} {
-      // READ: Any authenticated user can read all ride requests.
-      allow read: if request.auth != null;
+      // GET: Any authenticated user can get a single ride request.
+      allow get: if request.auth != null;
+
+      // LIST: Any authenticated user can list ride requests.
+      allow list: if request.auth != null;
 
       // CREATE: An authenticated user can create a ride request for themselves.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
@@ -128,3 +135,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
