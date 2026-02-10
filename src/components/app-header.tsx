@@ -32,7 +32,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { useUser, useAuth, useDoc, useFirestore, useCollection } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { doc, collection, query, where, orderBy, updateDoc } from "firebase/firestore";
+import { doc, collection, query, where, updateDoc } from "firebase/firestore";
 import type { UserProfile, Notification } from "@/lib/schemas";
 import { Skeleton } from "./ui/skeleton"
 import { formatDistanceToNow } from "date-fns"
@@ -53,14 +53,25 @@ export function AppHeader() {
 
     const notificationsQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
+        // The orderBy clause was removed to prevent an error that requires a composite index.
+        // Sorting will be handled on the client.
         return query(
             collection(firestore, "notifications"),
-            where("userId", "==", user.uid),
-            orderBy("createdAt", "desc")
+            where("userId", "==", user.uid)
         );
     }, [firestore, user]);
 
-    const { data: notifications, isLoading: areNotificationsLoading } = useCollection<Notification>(notificationsQuery);
+    const { data: rawNotifications, isLoading: areNotificationsLoading } = useCollection<Notification>(notificationsQuery);
+
+    const notifications = React.useMemo(() => {
+        if (!rawNotifications) return null;
+        // Sort notifications on the client-side in descending order of creation time.
+        return [...rawNotifications].sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+            return dateB - dateA;
+        });
+    }, [rawNotifications]);
 
     const unreadNotifications = React.useMemo(() => notifications?.filter(n => !n.isRead) || [], [notifications]);
 

@@ -25,13 +25,11 @@ service cloud.firestore {
       // READ: Any authenticated user can read all ride offers.
       allow read: if request.auth != null;
 
-      // CREATE: An authenticated user can create a ride offer.
+      // CREATE: An authenticated user can create a ride offer for themselves.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
 
-      // UPDATE: 
-      // 1. The owner can update their own offer.
-      // 2. Another user can update the status to 'matched' (when accepting).
-      // 3. Another user can add themselves to the 'rejectedBy' list.
+      // UPDATE: The owner can update their own offer, or another user can update
+      // specific fields like status or rejectedBy.
       allow update: if request.auth != null && (
                       (resource.data.userProfileId == request.auth.uid) ||
                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'matched') ||
@@ -50,13 +48,11 @@ service cloud.firestore {
       // READ: Any authenticated user can read all ride requests.
       allow read: if request.auth != null;
 
-      // CREATE: An authenticated user can create a ride request.
+      // CREATE: An authenticated user can create a ride request for themselves.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
       
-      // UPDATE: 
-      // 1. The owner can update their own request.
-      // 2. Another user can update the status to 'matched' (when accepting).
-      // 3. Another user can add themselves to the 'rejectedBy' list.
+      // UPDATE: The owner can update their own request, or another user can update
+      // specific fields like status or rejectedBy.
       allow update: if request.auth != null && (
                       (resource.data.userProfileId == request.auth.uid) ||
                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'matched') ||
@@ -72,26 +68,28 @@ service cloud.firestore {
 
     // --- Rules for Confirmed Rides ---
     match /rides/{rideId} {
-      // CREATE: A ride can be created if the user is one of the participants.
-      allow create: if request.auth != null && request.auth.uid in request.resource.data.participantIds;
+      // READ/WRITE: Split into granular rules for security.
       
-      // GET, UPDATE, DELETE: Only participants can access a specific ride document.
+      // GET, UPDATE, DELETE: Only participants in the ride can access or modify a ride document.
       allow get, update, delete: if request.auth != null && request.auth.uid in resource.data.participantIds;
       
-      // LIST: A user can query for rides they are a part of.
-      allow list: if request.auth != null && request.auth.uid in request.query.where.participantIds;
+      // LIST: A user can query for rides only if they are filtering by their own UID in the 'participantIds' array.
+      allow list: if request.auth != null && request.query.where.participantIds.hasAny([request.auth.uid]);
+
+      // CREATE: A ride can be created if the user is one of the participants.
+      allow create: if request.auth != null && request.auth.uid in request.resource.data.participantIds;
     }
 
     // --- Rules for Chats ---
     match /chats/{chatId} {
-      // CREATE: A chat can be created if the user is one of the participants.
-      allow create: if request.auth != null && request.auth.uid in request.resource.data.participantIds;
-
       // GET, UPDATE: Only participants can read or update a chat document.
       allow get, update: if request.auth != null && request.auth.uid in resource.data.participantIds;
       
-      // LIST: Can only query for chats where you are a participant.
-      allow list: if request.auth != null && request.auth.uid in request.query.where.participantIds;
+      // LIST: A user can query for chats only if they are filtering by their own UID.
+      allow list: if request.auth != null && request.query.where.participantIds.hasAny([request.auth.uid]);
+      
+      // CREATE: A chat can be created if the user is one of the participants.
+      allow create: if request.auth != null && request.auth.uid in request.resource.data.participantIds;
       
       // DELETE: Chats cannot be deleted from the client.
       allow delete: if false;
@@ -108,17 +106,24 @@ service cloud.firestore {
 
     // --- Rules for Notifications ---
     match /notifications/{notificationId} {
-      // GET, UPDATE: A user can get or update their own notification.
-      allow get, update: if request.auth != null && resource.data.userId == request.auth.uid;
+      // READ permissions are split into 'get' (for single docs) and 'list' (for queries).
+      
+      // GET: A user can read a single notification document if their UID matches the document's 'userId' field.
+      allow get: if request.auth != null && resource.data.userId == request.auth.uid;
 
-      // LIST: A user can list their own notifications.
+      // LIST: A user can query the notifications collection ONLY if the query includes a 'where' clause
+      // that filters for their own 'userId'. This is a critical security rule.
       allow list: if request.auth != null && request.query.where.userId == request.auth.uid;
 
-      // CREATE: Any authenticated user can create a notification. The client logic is trusted
-      // to create it for the correct recipient.
+      // UPDATE: A user can update their own notification (e.g., marking it as read).
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+
+      // CREATE: Any authenticated user can create a notification. This is required because the
+      // client-side logic needs to create a notification FOR another user (e.g., when cancelling a ride).
+      // This trusts the client logic to be correct.
       allow create: if request.auth != null;
 
-      // DELETING: Deleting notifications from the client is not allowed.
+      // DELETE: Deleting notifications from the client is not allowed to preserve history.
       allow delete: if false;
     }
   }
