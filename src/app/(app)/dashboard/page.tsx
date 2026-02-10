@@ -191,8 +191,8 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        <div className="grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
+        <div className="grid gap-4 md:gap-8">
+          <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="grid gap-2">
@@ -266,56 +266,6 @@ export default function Dashboard() {
                 )}
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Community Activity</CardTitle>
-              <CardDescription>What's happening in your city.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10 border-2 border-primary/50">
-                    <AvatarImage src={placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} alt="Avatar" />
-                    <AvatarFallback>A</AvatarFallback>
-                  </Avatar>
-                  <div className="grid gap-1 text-sm">
-                      <p className="leading-none">
-                          <span className="font-semibold">Anjali</span> posted a new ride offer.
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                          Juhu to BKC
-                      </p>
-                  </div>
-              </div>
-              <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10 border-2 border-primary/50">
-                    <AvatarImage src={placeholderImages.find(p => p.id === 'avatar2')?.imageUrl} alt="Avatar" />
-                    <AvatarFallback>S</AvatarFallback>
-                  </Avatar>
-                  <div className="grid gap-1 text-sm">
-                      <p className="leading-none">
-                         <span className="font-semibold">Sunita</span> is looking for a ride.
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                          Thane to Andheri
-                      </p>
-                  </div>
-              </div>
-               <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10 border-2 border-primary/50">
-                    <AvatarImage src={placeholderImages.find(p => p.id === 'avatar3')?.imageUrl} alt="Avatar" />
-                    <AvatarFallback>G</AvatarFallback>
-                  </Avatar>
-                  <div className="grid gap-1 text-sm">
-                      <p className="leading-none">
-                         <span className="font-semibold">Geeta</span> completed a ride with Priya.
-                      </p>
-                       <p className="text-xs text-muted-foreground">
-                          Dadar to Powai
-                      </p>
-                  </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
   )
@@ -339,5 +289,7 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
 
     
