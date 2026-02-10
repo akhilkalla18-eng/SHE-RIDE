@@ -9,6 +9,7 @@ import {
   Bike,
   Users,
   Car,
+  Search,
 } from "lucide-react"
 import {
     Bar,
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Input } from "@/components/ui/input"
 import { useUser, useFirestore, useDoc, useCollection } from "@/firebase"
 import type { UserProfile, Ride, PickupRequest, ServiceRequest } from "@/lib/schemas"
 import { placeholderImages } from "@/lib/placeholder-images"
@@ -53,6 +55,7 @@ const EmptyState = ({ title, description, icon: Icon }: { title: string, descrip
 
 export default function Dashboard() {
     const [chartData, setChartData] = React.useState<any[]>([]);
+    const [searchTerm, setSearchTerm] = React.useState("");
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
@@ -82,7 +85,17 @@ export default function Dashboard() {
     }, [firestore]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
     
-    const upcomingRides = React.useMemo(() => rides?.filter(r => r.status === 'confirmed' || r.status === 'accepted' || r.status === 'requested') || [], [rides]);
+    const upcomingRides = React.useMemo(() => {
+        const allUpcoming = rides?.filter(r => r.status === 'confirmed' || r.status === 'accepted' || r.status === 'requested') || [];
+        if (!searchTerm.trim()) {
+            return allUpcoming;
+        }
+        return allUpcoming.filter(ride =>
+            ride.toLocation.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            ride.fromLocation.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [rides, searchTerm]);
+
     const completedRidesCount = React.useMemo(() => rides?.filter(r => r.status === 'completed').length || 0, [rides]);
     
     const newSuggestionsCount = React.useMemo(() => {
@@ -180,19 +193,31 @@ export default function Dashboard() {
         </div>
         <div className="grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
           <Card className="xl:col-span-2">
-            <CardHeader className="flex flex-row items-center">
-              <div className="grid gap-2">
-                <CardTitle>Upcoming &amp; Requested Rides</CardTitle>
-                <CardDescription>
-                  Your scheduled journeys and pending requests.
-                </CardDescription>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="grid gap-2">
+                    <CardTitle>Upcoming &amp; Requested Rides</CardTitle>
+                    <CardDescription>
+                    Your scheduled journeys and pending requests.
+                    </CardDescription>
+                </div>
+                <Button asChild size="sm" className="ml-auto gap-1 shrink-0">
+                    <Link href="/rides/suggestions">
+                    Find More Rides
+                    <ArrowUpRight className="h-4 w-4" />
+                    </Link>
+                </Button>
               </div>
-              <Button asChild size="sm" className="ml-auto gap-1">
-                <Link href="/rides/suggestions">
-                  Find More Rides
-                  <ArrowUpRight className="h-4 w-4" />
-                </Link>
-              </Button>
+              <div className="relative mt-4">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                      type="search"
+                      placeholder="Search by location..."
+                      className="w-full pl-8"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+              </div>
             </CardHeader>
             <CardContent>
                 {areRidesLoading ? (
@@ -234,9 +259,9 @@ export default function Dashboard() {
                   </Table>
                 ) : (
                     <EmptyState 
-                        title="No Upcoming Rides"
-                        description="You don't have any confirmed rides yet. Find a ride to get started!"
-                        icon={Car}
+                        title={searchTerm ? "No Matching Rides Found" : "No Upcoming Rides"}
+                        description={searchTerm ? "Your search did not match any upcoming or requested rides." : "You don't have any rides yet. Find a ride to get started!"}
+                        icon={searchTerm ? Search : Car}
                     />
                 )}
             </CardContent>
