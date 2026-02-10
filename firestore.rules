@@ -75,8 +75,11 @@ service cloud.firestore {
       // CREATE: A ride can be created if the user is one of the participants.
       allow create: if request.auth != null && request.auth.uid in request.resource.data.participantIds;
       
-      // READ, UPDATE, DELETE: Only participants can read, update, or delete a ride document.
-      allow read, update, delete: if request.auth != null && request.auth.uid in resource.data.participantIds;
+      // GET, UPDATE, DELETE: Only participants can access a specific ride document.
+      allow get, update, delete: if request.auth != null && request.auth.uid in resource.data.participantIds;
+      
+      // LIST: A user can query for rides they are a part of.
+      allow list: if request.auth != null && request.auth.uid in request.query.where.participantIds;
     }
 
     // --- Rules for Chats ---
@@ -84,8 +87,11 @@ service cloud.firestore {
       // CREATE: A chat can be created if the user is one of the participants.
       allow create: if request.auth != null && request.auth.uid in request.resource.data.participantIds;
 
-      // READ, UPDATE: Only participants can read or update a chat document.
-      allow read, update: if request.auth != null && request.auth.uid in resource.data.participantIds;
+      // GET, UPDATE: Only participants can read or update a chat document.
+      allow get, update: if request.auth != null && request.auth.uid in resource.data.participantIds;
+      
+      // LIST: Can only query for chats where you are a participant.
+      allow list: if request.auth != null && request.auth.uid in request.query.where.participantIds;
       
       // DELETE: Chats cannot be deleted from the client.
       allow delete: if false;
@@ -102,17 +108,17 @@ service cloud.firestore {
 
     // --- Rules for Notifications ---
     match /notifications/{notificationId} {
-      // A user can read or update their own notifications.
-      // This rule is robust against documents that might be missing the `userId` field.
-      allow read, update: if request.auth != null 
-                          && 'userId' in resource.data 
-                          && request.auth.uid == resource.data.userId;
+      // GET, UPDATE: A user can get or update their own notification.
+      allow get, update: if request.auth != null && resource.data.userId == request.auth.uid;
 
-      // Any authenticated user can create a notification. The client logic is trusted
+      // LIST: A user can list their own notifications.
+      allow list: if request.auth != null && request.query.where.userId == request.auth.uid;
+
+      // CREATE: Any authenticated user can create a notification. The client logic is trusted
       // to create it for the correct recipient.
       allow create: if request.auth != null;
 
-      // Deleting notifications from the client is not allowed.
+      // DELETING: Deleting notifications from the client is not allowed.
       allow delete: if false;
     }
   }
