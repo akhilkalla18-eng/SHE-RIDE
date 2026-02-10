@@ -102,8 +102,11 @@ service cloud.firestore {
 
     // --- Rules for Notifications ---
     match /notifications/{notificationId} {
-      // A user can read or update their own notifications (e.g., mark as read).
-      allow read, update: if request.auth != null && request.auth.uid == resource.data.userId;
+      // A user can read or update their own notifications.
+      // This rule is robust against documents that might be missing the `userId` field.
+      allow read, update: if request.auth != null 
+                          && 'userId' in resource.data 
+                          && request.auth.uid == resource.data.userId;
 
       // Any authenticated user can create a notification. The client logic is trusted
       // to create it for the correct recipient.
