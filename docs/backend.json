@@ -91,7 +91,7 @@
         "pickupRequestId": { "type": "string", "description": "Reference to the PickupRequest, if the ride originated from one." },
         "serviceRequestId": { "type": "string", "description": "Reference to the ServiceRequest, if the ride originated from one." },
         "participantIds": { "type": "array", "items": { "type": "string" }, "description": "Array containing the UIDs of both the rider and the passenger." },
-        "status": { "type": "string", "enum": ["requested", "accepted", "confirmed", "completed", "cancelled"], "description": "Status of the ride (requested, accepted, confirmed, completed, cancelled)." },
+        "status": { "type": "string", "enum": ["requested", "accepted", "confirmed", "completed", "cancelled", "cancelled_by_passenger", "cancelled_by_provider"], "description": "Status of the ride." },
         "sharedCost": { "type": "number", "description": "The agreed shared cost between the rider and passenger." },
         "dateTime": { "type": "string", "description": "ISO string of the confirmed ride's date and time." },
         "createdAt": { "type": "any", "description": "Timestamp of when the ride was created."},

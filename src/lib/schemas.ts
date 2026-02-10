@@ -152,9 +152,9 @@ export interface Ride {
    */
   participantIds: string[];
   /**
-   * Status of the ride (requested, accepted, confirmed, completed, cancelled).
+   * Status of the ride.
    */
-  status: "requested" | "accepted" | "confirmed" | "completed" | "cancelled";
+  status: "requested" | "accepted" | "confirmed" | "completed" | "cancelled" | "cancelled_by_passenger" | "cancelled_by_provider";
   /**
    * The agreed shared cost between the rider and passenger.
    */

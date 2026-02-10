@@ -73,7 +73,9 @@ function RideDetailPage() {
     }, [firestore, ride]);
     const { data: passengerProfile, isLoading: isPassengerLoading } = useDoc<UserProfile>(passengerRef);
     
-    const handleUpdateStatus = async (newStatus: Ride['status']) => {
+    const isCurrentUserDriver = user?.uid === ride?.driverId;
+
+    const handleUpdateStatus = async (newStatus: 'accepted') => {
         if (!rideRef) return;
         setIsUpdating(true);
         try {
@@ -85,6 +87,24 @@ function RideDetailPage() {
         } catch (error) {
             console.error("Failed to update ride status", error);
             toast({ variant: 'destructive', title: 'Update failed' });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+    
+    const handleCancel = async () => {
+        if (!rideRef) return;
+        setIsUpdating(true);
+        try {
+            const newStatus = isCurrentUserDriver ? 'cancelled_by_provider' : 'cancelled_by_passenger';
+            await updateDoc(rideRef, { status: newStatus });
+            toast({
+                title: 'Ride Canceled',
+                description: 'The ride has been successfully canceled. The other user will be notified.'
+            });
+        } catch (error) {
+            console.error("Failed to cancel ride", error);
+            toast({ variant: 'destructive', title: 'Cancellation Failed', description: 'Could not update the ride status.' });
         } finally {
             setIsUpdating(false);
         }
@@ -105,13 +125,34 @@ function RideDetailPage() {
         );
     }
 
-    const isCurrentUserDriver = user?.uid === ride.driverId;
-    const isCurrentUserPassenger = user?.uid === ride.passengerId;
-
     const canAccept = ride.status === 'requested' && isCurrentUserDriver;
-    const canConfirm = ride.status === 'accepted' && isCurrentUserPassenger;
-    const canCancel = ride.status === 'requested' || ride.status === 'accepted' || ride.status === 'confirmed';
+    const canCancel = ['requested', 'accepted', 'confirmed'].includes(ride.status);
 
+    const statusText = ride.status.replace(/_/g, ' ');
+    let badgeVariant: "default" | "secondary" | "destructive" = "secondary";
+    if (['accepted', 'confirmed', 'completed'].includes(ride.status)) {
+        badgeVariant = "default";
+    } else if (ride.status.startsWith('cancelled')) {
+        badgeVariant = "destructive";
+    }
+
+    const renderActionButtons = () => {
+        if (!canAccept && !canCancel) return null;
+        if (ride.status.startsWith('cancelled') || ride.status === 'completed') return null;
+
+        return (
+             <CardFooter className="flex gap-2 justify-end">
+                {canCancel && <Button variant="destructive" onClick={handleCancel} disabled={isUpdating}>
+                    {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Cancel Ride
+                </Button>}
+                {canAccept && <Button onClick={() => handleUpdateStatus('accepted')} disabled={isUpdating}>
+                    {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Accept Request
+                </Button>}
+            </CardFooter>
+        );
+    }
 
     return (
         <div className="max-w-4xl mx-auto grid gap-6">
@@ -124,7 +165,7 @@ function RideDetailPage() {
                                 {new Date(ride.dateTime).toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                             </CardDescription>
                         </div>
-                        <Badge variant={ride.status === 'confirmed' ? 'default' : 'secondary'} className="capitalize">{ride.status}</Badge>
+                        <Badge variant={badgeVariant} className="capitalize">{statusText}</Badge>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -145,7 +186,7 @@ function RideDetailPage() {
                             <CardHeader className="flex flex-row items-center gap-3">
                                 <Avatar className="h-12 w-12"><AvatarImage src={(driverProfile as any)?.photoURL || placeholderImages.find(i=>i.id === 'avatar1')?.imageUrl}/><AvatarFallback>{driverProfile?.name?.charAt(0)}</AvatarFallback></Avatar>
                                 <div>
-                                    <p className="text-xs text-muted-foreground">Driver</p>
+                                    <p className="text-xs text-muted-foreground">Provider</p>
                                     <p className="font-semibold">{driverProfile?.name}</p>
                                 </div>
                             </CardHeader>
@@ -161,17 +202,7 @@ function RideDetailPage() {
                         </Card>
                     </div>
                 </CardContent>
-                <CardFooter className="flex gap-2 justify-end">
-                    {canCancel && <Button variant="destructive" onClick={() => handleUpdateStatus('cancelled')} disabled={isUpdating}>
-                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Cancel Ride</Button>}
-                    {canAccept && <Button onClick={() => handleUpdateStatus('accepted')} disabled={isUpdating}>
-                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Accept Request</Button>}
-                    {canConfirm && <Button onClick={() => handleUpdateStatus('confirmed')} disabled={isUpdating}>
-                         {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Confirm Ride</Button>}
-                </CardFooter>
+                {renderActionButtons()}
             </Card>
         </div>
     )
