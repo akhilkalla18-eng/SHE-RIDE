@@ -168,6 +168,10 @@ export interface Ride {
    */
   createdAt: any;
   /**
+   * Timestamp of when the ride request was accepted by the driver.
+   */
+  acceptedAt?: any;
+  /**
    * The starting location of the ride.
    */
   fromLocation: string;

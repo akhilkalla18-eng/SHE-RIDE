@@ -14,6 +14,7 @@ import {
   CheckCircle,
   PartyPopper,
   CircleDot,
+  MessageSquare,
 } from "lucide-react"
 import {
     Bar,
@@ -92,15 +93,12 @@ export default function Dashboard() {
     
     const myPickupRequestsQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
-        // Removed orderBy to avoid needing a composite index, which can cause permission errors if not set up.
-        // Sorting will be handled on the client.
         return query(collection(firestore, "pickupRequests"), where("userProfileId", "==", user.uid));
     }, [firestore, user]);
     const { data: myPickupRequests, isLoading: areMyPickupsLoading } = useCollection<PickupRequest>(myPickupRequestsQuery);
     
     const latestActiveOffer = React.useMemo(() => {
         if (!myPickupRequests) return null;
-        // Sort requests by creation date in descending order to find the latest one.
         const sortedRequests = [...myPickupRequests].sort((a, b) => {
             const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
             const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
@@ -109,12 +107,22 @@ export default function Dashboard() {
         return sortedRequests.find(req => req.status !== 'cancelled') || null;
     }, [myPickupRequests]);
 
-    const matchedRideQuery = React.useMemo(() => {
-        if (!firestore || !latestActiveOffer || latestActiveOffer.status !== 'matched') return null;
-        return query(collection(firestore, "rides"), where("pickupRequestId", "==", latestActiveOffer.id), where("driverId", "==", user?.uid));
+    const associatedRidesQuery = React.useMemo(() => {
+        if (!firestore || !latestActiveOffer || !user?.uid) return null;
+        return query(collection(firestore, "rides"), where("pickupRequestId", "==", latestActiveOffer.id), where("driverId", "==", user.uid));
     }, [firestore, latestActiveOffer, user?.uid]);
-    const { data: matchedRides, isLoading: isMatchedRideLoading } = useCollection<Ride>(matchedRideQuery);
-    const latestMatchedRide = React.useMemo(() => (matchedRides && matchedRides[0]) || null, [matchedRides]);
+    const { data: associatedRides, isLoading: areAssociatedRidesLoading } = useCollection<Ride>(associatedRidesQuery);
+
+    const definitiveRide = React.useMemo(() => {
+        if (!associatedRides || associatedRides.length === 0) return null;
+        // Find a ride that is confirmed, accepted, or completed. This is the "active" one.
+        const activeRide = associatedRides.find(r => ['accepted', 'confirmed', 'completed'].includes(r.status));
+        if (activeRide) return activeRide;
+        
+        // If no active ride, but there are pending requests, just return the first one.
+        // The status card will interpret 'requested' as 'pending' anyway.
+        return associatedRides[0];
+    }, [associatedRides]);
 
 
     const upcomingRides = React.useMemo(() => {
@@ -139,7 +147,6 @@ export default function Dashboard() {
 
 
     React.useEffect(() => {
-        // This should only run on the client to avoid hydration mismatch errors.
         setChartData([
             { name: "Jan", total: Math.floor(Math.random() * 20) + 5 },
             { name: "Feb", total: Math.floor(Math.random() * 20) + 5 },
@@ -226,8 +233,8 @@ export default function Dashboard() {
         <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
             <MyRideStatusCard 
                 offer={latestActiveOffer} 
-                ride={latestMatchedRide}
-                isLoading={areMyPickupsLoading || isMatchedRideLoading}
+                ride={definitiveRide}
+                isLoading={areMyPickupsLoading || areAssociatedRidesLoading}
             />
           <Card>
             <CardHeader>
@@ -309,19 +316,27 @@ export default function Dashboard() {
 }
 
 function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | null, ride: Ride | null, isLoading: boolean }) {
-    
+    const firestore = useFirestore();
+
+    const passengerProfileRef = React.useMemo(() => {
+        if (!firestore || !ride?.passengerId) return null;
+        return doc(firestore, 'users', ride.passengerId);
+    }, [firestore, ride]);
+
+    const { data: passengerProfile, isLoading: isPassengerLoading } = useDoc<UserProfile>(passengerProfileRef);
+
     let step: 'pending' | 'confirmed' | 'completed' | null = null;
     let statusText = "No Active Ride";
     
     if (offer) {
-        if (offer.status === 'open') {
-            step = 'pending';
-            statusText = 'Ride Pending';
-        } else if (offer.status === 'matched' && ride) {
+        step = 'pending';
+        statusText = 'Ride Pending';
+
+        if (ride) {
             if (ride.status === 'completed') {
                 step = 'completed';
                 statusText = 'Ride Completed';
-            } else if (!ride.status.startsWith('cancelled')) {
+            } else if (ride.status === 'accepted' || ride.status === 'confirmed') {
                 step = 'confirmed';
                 statusText = 'Ride Confirmed';
             }
@@ -391,6 +406,29 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
                     </div>
                 </div>
                 <RideProgressBar currentStep={step} />
+                {step === 'confirmed' && (
+                    <Card className="bg-muted/50">
+                        <CardHeader className="p-4">
+                            <div className="flex items-center justify-between">
+                                {isPassengerLoading ? <Skeleton className="h-8 w-40" /> : passengerProfile ? (
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-10 w-10">
+                                            <AvatarImage src={(passengerProfile as any)?.photoURL || placeholderImages.find(p => p.id === 'avatar2')?.imageUrl} />
+                                            <AvatarFallback>{passengerProfile.name.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="text-sm font-semibold">{passengerProfile.name}</p>
+                                            <p className="text-xs text-muted-foreground">Your confirmed passenger</p>
+                                        </div>
+                                    </div>
+                                ) : <p className="text-sm">Passenger details loading...</p>}
+                                <Button variant="outline" size="sm">
+                                    <MessageSquare className="mr-2 h-4 w-4" /> Chat
+                                </Button>
+                            </div>
+                        </CardHeader>
+                    </Card>
+                )}
             </CardContent>
         </Card>
     );
@@ -437,8 +475,6 @@ function RideProgressBar({ currentStep }: { currentStep: 'pending' | 'confirmed'
 
 function AvatarGroup({ userIds }: { userIds: string[] }) {
     const firestore = useFirestore();
-    // In a real app, you'd fetch user profiles for these IDs
-    // For this example, we'll just show placeholders
     return (
         <div className="flex -space-x-2 overflow-hidden">
             {userIds.map((id, index) => {
@@ -453,5 +489,3 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
-
-    

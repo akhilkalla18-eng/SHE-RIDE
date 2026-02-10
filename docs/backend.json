@@ -95,6 +95,7 @@
         "sharedCost": { "type": "number", "description": "The agreed shared cost between the rider and passenger." },
         "dateTime": { "type": "string", "description": "ISO string of the confirmed ride's date and time." },
         "createdAt": { "type": "any", "description": "Timestamp of when the ride was created."},
+        "acceptedAt": { "type": "any", "description": "Timestamp of when the ride request was accepted by the driver." },
         "fromLocation": { "type": "string", "description": "The starting location of the ride."},
         "toLocation": { "type": "string", "description": "The destination of the ride."}
       },

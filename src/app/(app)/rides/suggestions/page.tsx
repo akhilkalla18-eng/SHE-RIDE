@@ -263,9 +263,10 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
             const ridesCollection = collection(firestore, "rides");
             await addDoc(ridesCollection, newRide);
     
-            // Update the status of the original request to 'matched'
-            const requestRef = doc(firestore, ride.type === 'service' ? 'serviceRequests' : 'pickupRequests', ride.id);
-            await updateDoc(requestRef, { status: 'matched' });
+            if (ride.type === 'service') {
+                const requestRef = doc(firestore, 'serviceRequests', ride.id);
+                await updateDoc(requestRef, { status: 'matched' });
+            }
     
             toast({
                 title: "Success!",
@@ -348,4 +349,3 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
         </Card>
     );
 }
-

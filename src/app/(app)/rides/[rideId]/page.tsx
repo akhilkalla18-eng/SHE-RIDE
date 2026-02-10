@@ -76,10 +76,20 @@ function RideDetailPage() {
     const isCurrentUserDriver = user?.uid === ride?.driverId;
 
     const handleUpdateStatus = async (newStatus: 'accepted') => {
-        if (!rideRef) return;
+        if (!rideRef || !firestore || !ride) return;
         setIsUpdating(true);
         try {
-            await updateDoc(rideRef, { status: newStatus });
+            await updateDoc(rideRef, { 
+                status: newStatus,
+                acceptedAt: serverTimestamp()
+            });
+
+            // If this ride came from a pickup request, mark that request as 'matched'
+            if (ride.pickupRequestId) {
+                const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
+                await updateDoc(pickupRequestRef, { status: 'matched' });
+            }
+
             toast({
                 title: 'Ride Updated!',
                 description: `The ride status is now '${newStatus}'.`
