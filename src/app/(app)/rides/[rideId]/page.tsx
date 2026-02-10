@@ -4,8 +4,8 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import type { Ride, UserProfile } from '@/lib/schemas';
+import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import type { Ride, UserProfile, Notification } from '@/lib/schemas';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -93,11 +93,27 @@ function RideDetailPage() {
     };
     
     const handleCancel = async () => {
-        if (!rideRef) return;
+        if (!rideRef || !firestore || !user || !ride || !driverProfile || !passengerProfile) return;
         setIsUpdating(true);
         try {
             const newStatus = isCurrentUserDriver ? 'cancelled_by_provider' : 'cancelled_by_passenger';
             await updateDoc(rideRef, { status: newStatus });
+
+            const otherUserId = isCurrentUserDriver ? ride.passengerId : ride.driverId;
+            const currentUserProfile = isCurrentUserDriver ? driverProfile : passengerProfile;
+            
+            const notificationsCollection = collection(firestore, "notifications");
+            const newNotification: Omit<Notification, 'id'> = {
+                userId: otherUserId,
+                rideId: ride.id,
+                message: `${currentUserProfile.name} has canceled the ride.`,
+                type: 'ride_cancelled',
+                cancelledBy: isCurrentUserDriver ? 'provider' : 'passenger',
+                isRead: false,
+                createdAt: serverTimestamp()
+            };
+            await addDoc(notificationsCollection, newNotification);
+
             toast({
                 title: 'Ride Canceled',
                 description: 'The ride has been successfully canceled. The other user will be notified.'

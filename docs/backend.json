@@ -124,6 +124,22 @@
         "location": { "type": "string", "description": "Location of the user when the alert was triggered (e.g., coordinates)." }
       },
       "required": ["userProfileId", "rideId", "timestamp", "location"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents an in-app notification for a user.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the notification." },
+        "userId": { "type": "string", "description": "UID of the user who will receive the notification." },
+        "rideId": { "type": "string", "description": "ID of the related ride, if applicable." },
+        "message": { "type": "string", "description": "The content of the notification message." },
+        "type": { "type": "string", "enum": ["ride_cancelled", "ride_accepted", "ride_requested", "new_message"], "description": "The type of notification." },
+        "cancelledBy": { "type": "string", "enum": ["passenger", "provider"], "description": "Indicates who cancelled the ride." },
+        "isRead": { "type": "boolean", "description": "True if the user has read the notification." },
+        "createdAt": { "type": "any", "description": "Timestamp of when the notification was created." }
+      },
+      "required": ["userId", "message", "type", "isRead", "createdAt"]
     }
   },
   "auth": {
@@ -153,6 +169,10 @@
     "/sos_alerts/{sosAlertId}": {
       "schema": { "$ref": "#/entities/SosAlert" },
       "description": "Stores SOS alerts triggered by users during rides."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Stores in-app notifications for users."
     }
   }
 }

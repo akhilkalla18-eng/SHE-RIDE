@@ -1,4 +1,5 @@
-import { type PickupRequest as PickupRequestSchema, type ServiceRequest as ServiceRequestSchema, type UserProfile, type Ride as RideSchema } from "./schemas";
+
+import { type PickupRequest as PickupRequestSchema, type ServiceRequest as ServiceRequestSchema, type UserProfile, type Ride as RideSchema, type Notification as NotificationSchema } from "./schemas";
 
 
 export type User = UserProfile & {
@@ -15,13 +16,7 @@ export type RideRequest = (PickupRequestSchema | ServiceRequestSchema) & {
   status: 'open' | 'matched' | 'confirmed';
 };
 
-export type Notification = {
-  id: string;
-  text: string;
-  time: string;
-  read: boolean;
-};
-
+export type Notification = NotificationSchema;
 export type Ride = RideSchema;
 export type PickupRequest = PickupRequestSchema;
 export type ServiceRequest = ServiceRequestSchema;

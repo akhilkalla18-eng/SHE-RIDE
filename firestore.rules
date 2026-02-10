@@ -99,5 +99,18 @@ service cloud.firestore {
       // READ, UPDATE, DELETE: These operations are not allowed from the client for security.
       allow read, update, delete: if false;
     }
+
+    // --- Rules for Notifications ---
+    match /notifications/{notificationId} {
+      // A user can read or update their own notifications (e.g., mark as read).
+      allow read, update: if request.auth != null && request.auth.uid == resource.data.userId;
+
+      // Any authenticated user can create a notification. The client logic is trusted
+      // to create it for the correct recipient.
+      allow create: if request.auth != null;
+
+      // Deleting notifications from the client is not allowed.
+      allow delete: if false;
+    }
   }
 }

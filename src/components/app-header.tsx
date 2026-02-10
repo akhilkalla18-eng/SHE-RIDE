@@ -28,14 +28,14 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { Bell, LifeBuoy, LogOut, TriangleAlert, User } from "lucide-react"
-import { notifications } from "@/lib/data"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-import { useUser, useAuth, useDoc, useFirestore } from "@/firebase";
+import { useUser, useAuth, useDoc, useFirestore, useCollection } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { doc } from "firebase/firestore";
-import type { UserProfile } from "@/lib/schemas";
+import { doc, collection, query, where, orderBy, updateDoc } from "firebase/firestore";
+import type { UserProfile, Notification } from "@/lib/schemas";
 import { Skeleton } from "./ui/skeleton"
+import { formatDistanceToNow } from "date-fns"
 
 export function AppHeader() {
     const { toast } = useToast()
@@ -50,6 +50,37 @@ export function AppHeader() {
     }, [firestore, user]);
 
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
+
+    const notificationsQuery = React.useMemo(() => {
+        if (!user || !firestore) return null;
+        return query(
+            collection(firestore, "notifications"),
+            where("userId", "==", user.uid),
+            orderBy("createdAt", "desc")
+        );
+    }, [firestore, user]);
+
+    const { data: notifications, isLoading: areNotificationsLoading } = useCollection<Notification>(notificationsQuery);
+
+    const unreadNotifications = React.useMemo(() => notifications?.filter(n => !n.isRead) || [], [notifications]);
+
+    const handleNotificationClick = async (notification: Notification) => {
+        if (!firestore) return;
+        const notifRef = doc(firestore, 'notifications', notification.id);
+        
+        try {
+            if (!notification.isRead) {
+                await updateDoc(notifRef, { isRead: true });
+            }
+            if (notification.rideId) {
+                router.push(`/rides/${notification.rideId}`);
+            }
+        } catch(error) {
+            console.error("Error handling notification click", error);
+            toast({variant: "destructive", title: "Error", description: "Could not process notification."})
+        }
+    };
+
 
     const handleSosClick = () => {
         toast({
@@ -81,7 +112,7 @@ export function AppHeader() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />
-            {notifications.some(n => !n.read) && (
+            {unreadNotifications.length > 0 && (
               <span className="absolute top-1 right-1 flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-primary/90"></span>
@@ -92,15 +123,23 @@ export function AppHeader() {
         <DropdownMenuContent align="end" className="w-80">
           <DropdownMenuLabel>Notifications</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {notifications.map(n => (
-            <DropdownMenuItem key={n.id} className={`flex items-start gap-2 ${!n.read && 'font-semibold'}`}>
-                <div className={`mt-1 h-2 w-2 rounded-full ${!n.read ? 'bg-primary' : 'bg-transparent'}`} />
-                <div>
-                    <p className="text-sm leading-snug">{n.text}</p>
-                    <p className="text-xs text-muted-foreground">{n.time}</p>
-                </div>
-            </DropdownMenuItem>
-          ))}
+          {areNotificationsLoading ? (
+            <DropdownMenuItem>Loading...</DropdownMenuItem>
+          ) : notifications && notifications.length > 0 ? (
+             notifications.map(n => (
+                <DropdownMenuItem key={n.id} className={`flex items-start gap-2 cursor-pointer ${!n.isRead && 'font-semibold'}`} onClick={() => handleNotificationClick(n)}>
+                    <div className={`mt-1 h-2 w-2 rounded-full ${!n.isRead ? 'bg-primary' : 'bg-transparent'}`} />
+                    <div>
+                        <p className="text-sm leading-snug whitespace-normal">{n.message}</p>
+                        <p className="text-xs text-muted-foreground">
+                            {n.createdAt?.toDate ? formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true }) : 'just now'}
+                        </p>
+                    </div>
+                </DropdownMenuItem>
+            ))
+          ) : (
+            <DropdownMenuItem>No new notifications</DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

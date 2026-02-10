@@ -216,3 +216,37 @@ export interface SosAlert {
    */
   location: string;
 }
+export interface Notification {
+  /**
+   * Unique identifier for the notification.
+   */
+  id: string;
+  /**
+   * UID of the user who will receive the notification.
+   */
+  userId: string;
+  /**
+   * ID of the related ride, if applicable.
+   */
+  rideId?: string;
+  /**
+   * The content of the notification message.
+   */
+  message: string;
+  /**
+   * The type of notification.
+   */
+  type: "ride_cancelled" | "ride_accepted" | "ride_requested" | "new_message";
+  /**
+   * Indicates who cancelled the ride.
+   */
+  cancelledBy?: "passenger" | "provider";
+  /**
+   * True if the user has read the notification.
+   */
+  isRead: boolean;
+  /**
+   * Timestamp of when the notification was created.
+   */
+  createdAt: any;
+}
