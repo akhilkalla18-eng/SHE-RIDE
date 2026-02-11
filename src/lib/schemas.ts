@@ -54,7 +54,7 @@ export interface Ride {
   /**
    * Status of the ride.
    */
-  status: "offering" | "requested" | "confirmed" | "in-progress" | "completed" | "cancelled";
+  status: "offering" | "pending" | "confirmed" | "in-progress" | "completed" | "cancelled";
   /**
    * The agreed shared cost between the rider and passenger.
    */

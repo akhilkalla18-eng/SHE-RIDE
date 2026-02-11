@@ -81,7 +81,7 @@ function RideDetailPage() {
     const isCurrentUserPassenger = user?.uid === ride?.passengerId;
 
     const handleAcceptRequest = async () => {
-        if (!rideRef || !firestore || !ride || !driverProfile || !user || !isCurrentUserDriver || ride.status !== 'requested') return;
+        if (!rideRef || !firestore || !ride || !driverProfile || !user || !isCurrentUserDriver || ride.status !== 'pending') return;
         setIsUpdating(true);
         const otp = Math.floor(1000 + Math.random() * 9000).toString();
     
@@ -168,12 +168,12 @@ function RideDetailPage() {
     }
     
     // Driver can accept a passenger's request on their ride offer
-    const canAccept = ride.status === 'requested' && isCurrentUserDriver;
+    const canAccept = ride.status === 'pending' && isCurrentUserDriver;
     // Either participant can cancel a confirmed or in-progress ride.
     // A passenger can cancel their own request.
     // A driver can cancel their own offer.
-    const canCancel = ['confirmed', 'in-progress'].includes(ride.status) || (ride.status === 'requested' && isCurrentUserPassenger) || (ride.status === 'offering' && isCurrentUserDriver);
-    const cancelButtonText = ride.status === 'requested' && isCurrentUserPassenger ? 'Cancel Request' : (ride.status === 'offering' ? 'Cancel Offer' : 'Cancel Ride');
+    const canCancel = ['confirmed', 'in-progress'].includes(ride.status) || (ride.status === 'pending' && isCurrentUserPassenger) || (ride.status === 'offering' && isCurrentUserDriver);
+    const cancelButtonText = ride.status === 'pending' && isCurrentUserPassenger ? 'Cancel Request' : (ride.status === 'offering' ? 'Cancel Offer' : 'Cancel Ride');
 
 
     const statusText = ride.status.replace(/_/g, ' ');

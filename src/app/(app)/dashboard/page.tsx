@@ -83,7 +83,7 @@ export default function Dashboard() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     
-    const activeStatuses: Ride['status'][] = ["requested", "confirmed", "in-progress", "offering"];
+    const activeStatuses: Ride['status'][] = ["pending", "confirmed", "in-progress", "offering"];
 
     const userProfileRef = React.useMemo(() => {
         if (!user || !firestore) return null;
@@ -101,7 +101,7 @@ export default function Dashboard() {
     // Get all open ride offers and requests for the suggestions count
     const openRidesForSuggestionsQuery = React.useMemo(() => {
         if (!firestore) return null;
-        return query(collection(firestore, "rides"), where("status", "in", ["offering", "requested"]));
+        return query(collection(firestore, "rides"), where("status", "in", ["offering", "pending"]));
     }, [firestore]);
     const { data: openRidesForSuggestions, isLoading: areSuggestionsLoading } = useCollection<Ride>(openRidesForSuggestionsQuery);
     
@@ -111,7 +111,7 @@ export default function Dashboard() {
         return query(
             collection(firestore, "rides"),
             where("driverId", "==", user.uid),
-            where("status", "in", ["offering", "requested", "confirmed", "in-progress"])
+            where("status", "in", ["offering", "pending", "confirmed", "in-progress"])
         );
     }, [firestore, user]);
     const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myLatestDrivingRideQuery);
@@ -122,7 +122,7 @@ export default function Dashboard() {
         return query(
             collection(firestore, "rides"), 
             where("passengerId", "==", user.uid),
-            where("status", "in", ["requested", "confirmed", "in-progress"])
+            where("status", "in", ["pending", "confirmed", "in-progress"])
         );
     }, [firestore, user]);
     const { data: myPassengerRides, isLoading: areMyPassengerRidesLoading } = useCollection<Ride>(myLatestPassengerRideQuery);
@@ -138,7 +138,7 @@ export default function Dashboard() {
     }, [myPassengerRides]);
 
     const upcomingRides = React.useMemo(() => {
-        const allUpcoming = allMyRides?.filter(r => ["requested", "confirmed", "in-progress"].includes(r.status)) || [];
+        const allUpcoming = allMyRides?.filter(r => ["pending", "confirmed", "in-progress"].includes(r.status)) || [];
         if (!searchTerm.trim()) {
             return allUpcoming;
         }
@@ -490,7 +490,7 @@ function OfferedRideView({ ride }: { ride: Ride }) {
         }
     }
     
-    const canCancelOffer = ride.status === 'offering' || ride.status === 'requested';
+    const canCancelOffer = ride.status === 'offering' || ride.status === 'pending';
 
     return (
         <div className="space-y-4">
@@ -506,7 +506,7 @@ function OfferedRideView({ ride }: { ride: Ride }) {
                     ride.status === 'in-progress' ? 'default' :
                     ride.status === 'cancelled' ? 'destructive' :
                     'outline'
-                } className={cn('capitalize', (ride.status === 'offering' || ride.status === 'requested') && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
+                } className={cn('capitalize', (ride.status === 'offering' || ride.status === 'pending') && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
                 <div className="font-medium truncate pr-2">{ride.fromLocation}</div>
@@ -588,7 +588,7 @@ function RequestedRideView({ ride }: { ride: Ride }) {
     let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary";
 
     switch(ride.status) {
-        case 'requested':
+        case 'pending':
             statusText = ride.driverId ? "Request Sent" : "Pending Driver";
             badgeVariant = 'secondary';
             break;
@@ -621,7 +621,7 @@ function RequestedRideView({ ride }: { ride: Ride }) {
         }
     };
     
-    const canCancelRequest = ride.status === 'requested';
+    const canCancelRequest = ride.status === 'pending';
 
     return (
         <div className="space-y-4">
@@ -631,7 +631,7 @@ function RequestedRideView({ ride }: { ride: Ride }) {
                     {' - '}
                     <span>₹{ride.sharedCost}</span>
                 </div>
-                <Badge variant={badgeVariant} className={cn('capitalize', ride.status === 'requested' && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
+                <Badge variant={badgeVariant} className={cn('capitalize', ride.status === 'pending' && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
@@ -730,7 +730,7 @@ function RideProgressBar({ ride }: { ride: Ride }) {
     }
     
     let currentStepIndex = -1;
-    if (ride.status === 'offering' || ride.status === 'requested') {
+    if (ride.status === 'offering' || ride.status === 'pending') {
         currentStepIndex = 0;
     } else if (ride.status === 'confirmed') {
         currentStepIndex = 1;

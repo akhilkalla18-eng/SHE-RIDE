@@ -51,7 +51,7 @@
         "driverId": { "type": "string", "description": "UID of the user who is driving. Null if it's a passenger's open request." },
         "passengerId": { "type": "string", "description": "UID of the user who is the passenger. Null if it's a driver's open offer." },
         "participantIds": { "type": "array", "items": { "type": "string" }, "description": "Array containing the UIDs of the rider and/or the passenger." },
-        "status": { "type": "string", "enum": ["offering", "requested", "confirmed", "in-progress", "completed", "cancelled"], "description": "Status of the ride." },
+        "status": { "type": "string", "enum": ["offering", "pending", "confirmed", "in-progress", "completed", "cancelled"], "description": "Status of the ride." },
         "sharedCost": { "type": "number", "description": "The agreed shared cost between the rider and passenger." },
         "dateTime": { "type": "string", "description": "ISO string of the confirmed ride's date and time." },
         "createdAt": { "type": "any", "description": "Timestamp of when the ride was created."},
