@@ -19,12 +19,11 @@ service cloud.firestore {
     
     function isCreatingOwnRide() {
     	return (request.resource.data.status == 'offering' && request.resource.data.driverId == request.auth.uid && request.resource.data.passengerId == null) ||
-      (request.resource.data.status == 'requested' && request.resource.data.passengerId == request.auth.uid && request.resource.data.driverId == null);
+      (request.resource.data.status == 'pending' && request.resource.data.passengerId == request.auth.uid && request.resource.data.driverId == null);
     }
     
     function isAcceptingOpenRide() {
-    	return (resource.data.status == 'offering' && request.resource.data.status == 'requested' && request.resource.data.passengerId == request.auth.uid) ||
-      (resource.data.status == 'requested' && resource.data.driverId == null && request.resource.data.status == 'confirmed' && request.resource.data.driverId == request.auth.uid);
+    	return (resource.data.status == 'pending' && resource.data.driverId == null && request.resource.data.status == 'confirmed' && request.resource.data.driverId == request.auth.uid);
     }
 
     // --- Rules for User Profiles ---
@@ -40,10 +39,9 @@ service cloud.firestore {
       allow get: if request.auth != null;
       allow create: if request.auth != null && isCreatingOwnRide();
       
-      // Simplified update rule for lifecycle management.
-      // This allows participants to update, and allows users to accept open rides.
-      // Client-side logic is responsible for enforcing correct state transitions.
-      allow update: if request.auth != null && (isParticipant(resource.data) || isAcceptingOpenRide());
+      // Allow participants to update the ride document.
+      // Also allow a driver to accept an open request.
+      allow update: if request.auth != null && (isParticipant(resource.data) || isAcceptingOpenRide() || request.auth.uid == resource.data.driverId);
 			allow delete: if request.auth != null && isParticipant(resource.data);
 
       // --- Rules for Ride Chat Messages ---
@@ -63,6 +61,19 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+
+    // --- Rules for Ride Requests ---
+    match /rideRequests/{rideRequestId} {
+      // Any authenticated user can create a request, but they must be the passenger.
+      allow create: if request.auth.uid != null && request.auth.uid == request.resource.data.passengerId;
+      // The passenger or driver can read the request.
+      allow read: if request.auth.uid != null && (request.auth.uid == resource.data.passengerId || request.auth.uid == resource.data.driverId);
+      // Only the driver can update the request (to accept or reject it).
+      allow update: if request.auth.uid != null && request.auth.uid == resource.data.driverId;
+      // The passenger can delete their own request if it's still pending.
+      allow delete: if request.auth.uid != null && request.auth.uid == resource.data.passengerId && resource.data.status == 'pending';
+    }
+
 
     // --- Rules for SOS Alerts ---
     match /sos_alerts/{sosAlertId} {

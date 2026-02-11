@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUser, useFirestore, useCollection, useDoc, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { placeholderImages } from "@/lib/placeholder-images";
-import { UserProfile, Ride } from "@/lib/schemas";
+import { UserProfile, Ride, RideRequest } from "@/lib/schemas";
 import { ArrowRight, Bike, Search, User as UserIcon, Coins } from "lucide-react";
 import React from "react";
-import { collection, query, where, doc, serverTimestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, query, where, doc, serverTimestamp, addDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 
@@ -69,11 +69,18 @@ export default function SuggestionsPage() {
         if (!user || !firestore) return null;
         return query(
           collection(firestore, "rides"), 
-          where("status", "==", "requested"),
+          where("status", "==", "pending"),
           where("driverId", "==", null) // Only show requests that haven't been picked up
         );
     }, [firestore, user]);
     const {data: rideRequests, isLoading: areRequestsLoading} = useCollection<Ride>(rideRequestsQuery);
+    
+    // Query for the current user's sent requests, to disable buttons
+    const mySentRequestsQuery = React.useMemo(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, "rideRequests"), where("passengerId", "==", user.uid), where("status", "==", "pending"));
+    }, [firestore, user]);
+    const { data: mySentRequests, isLoading: areMyRequestsLoading } = useCollection<RideRequest>(mySentRequestsQuery);
     
     // Filtered lists for rendering
     const filteredRideOffers = React.useMemo(() => {
@@ -96,7 +103,7 @@ export default function SuggestionsPage() {
         );
     }, [rideRequests, searchTerm, user]);
 
-    const isLoading = areOffersLoading || areRequestsLoading || isUserLoading;
+    const isLoading = areOffersLoading || areRequestsLoading || isUserLoading || areMyRequestsLoading;
 
     return (
         <div className="container mx-auto">
@@ -129,7 +136,7 @@ export default function SuggestionsPage() {
                             Array.from({ length: 3 }).map((_, i) => <SuggestionSkeleton key={i} />)
                         ) : filteredRideRequests.length > 0 ? (
                             filteredRideRequests.map((ride) => (
-                                <SuggestionCard key={ride.id} ride={ride} type="request" />
+                                <SuggestionCard key={ride.id} ride={ride} type="request" myRequests={mySentRequests || []} />
                             ))
                         ) : (
                            <EmptyState 
@@ -146,7 +153,7 @@ export default function SuggestionsPage() {
                             Array.from({ length: 3 }).map((_, i) => <SuggestionSkeleton key={i} />)
                         ) : filteredRideOffers.length > 0 ? (
                             filteredRideOffers.map((ride) => (
-                                <SuggestionCard key={ride.id} ride={ride} type="offer" />
+                                <SuggestionCard key={ride.id} ride={ride} type="offer" myRequests={mySentRequests || []} />
                             ))
                         ) : (
                            <EmptyState 
@@ -161,7 +168,7 @@ export default function SuggestionsPage() {
     );
 }
 
-function SuggestionCard({ ride, type }: { ride: Ride, type: 'offer' | 'request' }) {
+function SuggestionCard({ ride, type, myRequests }: { ride: Ride, type: 'offer' | 'request', myRequests: RideRequest[] }) {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
@@ -183,10 +190,9 @@ function SuggestionCard({ ride, type }: { ride: Ride, type: 'offer' | 'request' 
         }
         setIsSubmitting(true);
     
-        const rideRef = doc(firestore, 'rides', ride.id);
-    
         try {
             if (type === 'request') { // Current user is Driver, accepting a passenger's request
+                const rideRef = doc(firestore, 'rides', ride.id);
                 const otp = Math.floor(1000 + Math.random() * 9000).toString();
                 await updateDoc(rideRef, {
                     driverId: user.uid,
@@ -196,21 +202,25 @@ function SuggestionCard({ ride, type }: { ride: Ride, type: 'offer' | 'request' 
                     rideOtp: otp,
                 });
                 toast({ title: "Ride Accepted!", description: "The ride is now confirmed. Please contact the passenger." });
+                router.push('/dashboard');
             } else { // Current user is Passenger, requesting a spot from a driver
-                await updateDoc(rideRef, {
+                await addDoc(collection(firestore, 'rideRequests'), {
+                    rideId: ride.id,
+                    driverId: ride.driverId,
                     passengerId: user.uid,
-                    participantIds: arrayUnion(user.uid),
-                    status: 'requested',
+                    status: 'pending',
+                    createdAt: serverTimestamp()
                 });
-                toast({ title: "Request Sent!", description: "The driver has been notified of your request." });
+                toast({ title: "Request Sent!", description: "The driver has been notified. You can track its status on your dashboard." });
             }
-            router.push('/dashboard');
         } catch (error) {
             console.error("Error handling suggestion action:", error);
             const contextualError = new FirestorePermissionError({
-              path: `rides/${ride.id}`,
-              operation: 'update',
-              requestResourceData: { status: type === 'request' ? 'confirmed' : 'requested' }
+              path: type === 'request' ? `rides/${ride.id}` : 'rideRequests',
+              operation: type === 'request' ? 'update' : 'create',
+              requestResourceData: type === 'request' 
+                ? { status: 'confirmed', driverId: user?.uid } 
+                : { rideId: ride.id, passengerId: user.uid, status: 'pending' }
             });
             errorEmitter.emit('permission-error', contextualError);
         } finally {
@@ -219,7 +229,7 @@ function SuggestionCard({ ride, type }: { ride: Ride, type: 'offer' | 'request' 
     }
     
     // A passenger can't request a ride they've already requested.
-    const hasRequested = type === 'offer' && ride.participantIds.includes(user?.uid || '');
+    const hasRequested = type === 'offer' && myRequests?.some(req => req.rideId === ride.id);
 
     const isButtonDisabled = isSubmitting || hasRequested;
     const buttonText = isSubmitting 

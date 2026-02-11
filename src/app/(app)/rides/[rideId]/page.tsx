@@ -3,15 +3,15 @@
 
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useFirestore, useDoc, useUser } from '@/firebase';
-import { doc, updateDoc, collection, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
-import type { Ride, UserProfile, Notification } from '@/lib/schemas';
+import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
+import { doc, updateDoc, collection, serverTimestamp, writeBatch, arrayUnion, query, where, getDocs } from 'firebase/firestore';
+import type { Ride, UserProfile, Notification, RideRequest } from '@/lib/schemas';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Calendar, Coins, User as UserIcon, Bike, Clock, Loader2, MessageSquare } from 'lucide-react';
+import { ArrowRight, Calendar, Coins, User as UserIcon, Bike, Clock, Loader2, MessageSquare, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { placeholderImages } from '@/lib/placeholder-images';
 import Link from 'next/link';
@@ -80,21 +80,67 @@ function RideDetailPage() {
     const isCurrentUserDriver = user?.uid === ride?.driverId;
     const isCurrentUserPassenger = user?.uid === ride?.passengerId;
 
-    const handleAcceptRequest = async () => {
-        if (!rideRef || !firestore || !ride || !driverProfile || !user || !isCurrentUserDriver || ride.status !== 'pending') return;
+    const handleAcceptRequest = async (requestToAccept: RideRequest & { id: string }) => {
+        if (!rideRef || !firestore || !ride || !driverProfile || !user || !isCurrentUserDriver || ride.status !== 'offering') return;
         setIsUpdating(true);
-        const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    
+        
         try {
-            await updateDoc(rideRef, {
+            const batch = writeBatch(firestore);
+            
+            // 1. Update the main ride document
+            const otp = Math.floor(1000 + Math.random() * 9000).toString();
+            batch.update(rideRef, {
                 status: 'confirmed',
+                passengerId: requestToAccept.passengerId,
+                participantIds: arrayUnion(requestToAccept.passengerId),
                 acceptedAt: serverTimestamp(),
                 rideOtp: otp,
+                otpVerified: false,
+                riderStarted: false,
+                passengerStarted: false,
+                riderCompleted: false,
+                passengerCompleted: false,
             });
+
+            // 2. Get all pending requests for this ride to accept one and reject others
+            const requestsQuery = query(collection(firestore, 'rideRequests'), where('rideId', '==', ride.id), where('status', '==', 'pending'));
+            const requestsSnapshot = await getDocs(requestsQuery);
+
+            requestsSnapshot.forEach(requestDoc => {
+                if (requestDoc.id === requestToAccept.id) {
+                    // 2a. Update the accepted request
+                    batch.update(requestDoc.ref, { status: 'accepted' });
+                    // 2b. Notify the accepted passenger
+                    const acceptedNotifRef = doc(collection(firestore, "notifications"));
+                    batch.set(acceptedNotifRef, {
+                        userId: requestToAccept.passengerId,
+                        rideId: ride.id,
+                        message: `Your request for the ride with ${driverProfile.name} has been accepted!`,
+                        type: 'ride_accepted',
+                        isRead: false,
+                        createdAt: serverTimestamp()
+                    });
+                } else {
+                    // 2c. Update other pending requests to 'rejected'
+                    batch.update(requestDoc.ref, { status: 'rejected' });
+                     // 2d. Notify the rejected passengers
+                    const rejectedNotifRef = doc(collection(firestore, "notifications"));
+                    batch.set(rejectedNotifRef, {
+                        userId: requestDoc.data().passengerId,
+                        rideId: ride.id,
+                        message: `Your request for the ride with ${driverProfile.name} was not accepted.`,
+                        type: 'ride_cancelled', // Or a new 'ride_rejected' type
+                        isRead: false,
+                        createdAt: serverTimestamp()
+                    });
+                }
+            });
+
+            await batch.commit();
             
             toast({
-                title: 'Ride Accepted!',
-                description: `The ride has been confirmed. Please verify with the OTP to start.`
+                title: 'Ride Confirmed!',
+                description: `You have accepted the request. The ride is now confirmed.`
             });
     
         } catch (error) {
@@ -167,13 +213,9 @@ function RideDetailPage() {
         );
     }
     
-    // Driver can accept a passenger's request on their ride offer
-    const canAccept = ride.status === 'pending' && isCurrentUserDriver;
-    // Either participant can cancel a confirmed or in-progress ride.
-    // A passenger can cancel their own request.
     // A driver can cancel their own offer.
-    const canCancel = ['confirmed', 'in-progress'].includes(ride.status) || (ride.status === 'pending' && isCurrentUserPassenger) || (ride.status === 'offering' && isCurrentUserDriver);
-    const cancelButtonText = ride.status === 'pending' && isCurrentUserPassenger ? 'Cancel Request' : (ride.status === 'offering' ? 'Cancel Offer' : 'Cancel Ride');
+    const canCancel = ['confirmed', 'in-progress'].includes(ride.status) || (ride.status === 'offering' && isCurrentUserDriver);
+    const cancelButtonText = ride.status === 'offering' ? 'Cancel Offer' : 'Cancel Ride';
 
 
     const statusText = ride.status.replace(/_/g, ' ');
@@ -232,6 +274,10 @@ function RideDetailPage() {
                         </Card>
                     </div>
 
+                    {isCurrentUserDriver && ride.status === 'offering' &&
+                        <RideRequestsList rideId={ride.id} onAccept={handleAcceptRequest} isUpdating={isUpdating} />
+                    }
+
                     <RideLifecycleManager
                         ride={ride}
                         rideRef={rideRef!}
@@ -245,15 +291,73 @@ function RideDetailPage() {
                         {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         {cancelButtonText}
                     </Button>}
-                    {canAccept && <Button onClick={handleAcceptRequest} disabled={isUpdating}>
-                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Accept Request
-                    </Button>}
                 </CardFooter>
             </Card>
         </div>
     )
 }
+
+function RideRequestsList({ rideId, onAccept, isUpdating }: { rideId: string, onAccept: (request: any) => void, isUpdating: boolean }) {
+    const firestore = useFirestore();
+    const requestsQuery = React.useMemo(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, "rideRequests"), where("rideId", "==", rideId), where("status", "==", "pending"));
+    }, [firestore, rideId]);
+
+    const { data: requests, isLoading } = useCollection<RideRequest>(requestsQuery);
+
+    if (isLoading) {
+        return <Skeleton className="h-24 w-full" />;
+    }
+
+    if (!requests || requests.length === 0) {
+        return (
+            <div className="text-center py-6 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">No pending requests for this ride yet.</p>
+            </div>
+        );
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2"><Users className="h-5 w-5" /> Pending Requests</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {requests.map(req => (
+                    <RequesterCard key={req.id} request={req} onAccept={onAccept} isUpdating={isUpdating} />
+                ))}
+            </CardContent>
+        </Card>
+    );
+}
+
+function RequesterCard({ request, onAccept, isUpdating }: { request: RideRequest & {id: string}, onAccept: (request: any) => void, isUpdating: boolean }) {
+    const firestore = useFirestore();
+    const passengerProfileRef = React.useMemo(() => doc(firestore, 'users', request.passengerId), [firestore, request.passengerId]);
+    const { data: passengerProfile, isLoading } = useDoc<UserProfile>(passengerProfileRef);
+
+    if (isLoading) {
+        return <div className="flex items-center justify-between p-3 rounded-md border"><Skeleton className="h-8 w-32" /><Skeleton className="h-8 w-20" /></div>;
+    }
+
+    return (
+        <div className="flex items-center justify-between p-3 rounded-md border bg-background">
+            <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                    <AvatarImage src={(passengerProfile as any)?.photoURL || placeholderImages.find(i=>i.id === 'avatar2')?.imageUrl} />
+                    <AvatarFallback>{passengerProfile?.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div>
+                    <p className="font-semibold">{passengerProfile?.name}</p>
+                    <p className="text-xs text-muted-foreground">{passengerProfile?.city}</p>
+                </div>
+            </div>
+            <Button size="sm" onClick={() => onAccept(request)} disabled={isUpdating}>Accept</Button>
+        </div>
+    );
+}
+
 
 function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUserPassenger }: { ride: Ride, rideRef: any, isCurrentUserDriver: boolean, isCurrentUserPassenger: boolean }) {
     const { toast } = useToast();

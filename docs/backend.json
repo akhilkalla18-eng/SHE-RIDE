@@ -71,6 +71,20 @@
       },
       "required": ["participantIds", "status", "dateTime", "sharedCost", "fromLocation", "toLocation"]
     },
+    "RideRequest": {
+      "title": "RideRequest",
+      "type": "object",
+      "description": "Represents a passenger's request to join a specific driver's offered ride.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the ride request." },
+        "rideId": { "type": "string", "description": "The ID of the ride document being requested." },
+        "driverId": { "type": "string", "description": "The UID of the driver offering the ride." },
+        "passengerId": { "type": "string", "description": "The UID of the passenger making the request." },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"], "description": "The status of the request, managed by the driver." },
+        "createdAt": { "type": "any", "description": "Timestamp of when the request was made."}
+      },
+      "required": ["rideId", "driverId", "passengerId", "status", "createdAt"]
+    },
     "ChatMessage": {
       "title": "ChatMessage",
       "type": "object",
@@ -132,6 +146,10 @@
     "/rides/{rideId}": {
       "schema": { "$ref": "#/entities/Ride" },
       "description": "Stores all ride data, from offer/request to completion. The single source of truth for a ride."
+    },
+    "/rideRequests/{rideRequestId}": {
+      "schema": { "$ref": "#/entities/RideRequest" },
+      "description": "Stores passenger requests for specific ride offers."
     },
     "/rides/{rideId}/messages/{messageId}": {
       "schema": { "$ref": "#/entities/ChatMessage" },

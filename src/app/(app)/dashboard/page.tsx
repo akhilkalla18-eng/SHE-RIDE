@@ -63,7 +63,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { useUser, useFirestore, useDoc, useCollection } from "@/firebase"
-import type { UserProfile, Ride, Notification } from "@/lib/schemas"
+import type { UserProfile, Ride, Notification, RideRequest } from "@/lib/schemas"
 import { placeholderImages } from "@/lib/placeholder-images"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -114,10 +114,10 @@ export default function Dashboard() {
             where("status", "in", ["offering", "pending", "confirmed", "in-progress"])
         );
     }, [firestore, user]);
-    const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myLatestDrivingRideQuery);
+    const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myDrivingRides);
     
-    // The latest ride the user is a passenger in
-    const myLatestPassengerRideQuery = React.useMemo(() => {
+    // The latest rides where user is a passenger (confirmed/active) OR it's their own open request
+    const myPassengerRidesQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
         return query(
             collection(firestore, "rides"), 
@@ -125,17 +125,36 @@ export default function Dashboard() {
             where("status", "in", ["pending", "confirmed", "in-progress"])
         );
     }, [firestore, user]);
-    const { data: myPassengerRides, isLoading: areMyPassengerRidesLoading } = useCollection<Ride>(myLatestPassengerRideQuery);
+    const { data: myPassengerRides, isLoading: areMyPassengerRidesLoading } = useCollection<Ride>(myPassengerRidesQuery);
+
+    // The latest requests the user has SENT for other people's rides
+    const mySentRequestsQuery = React.useMemo(() => {
+        if (!user || !firestore) return null;
+        return query(collection(firestore, "rideRequests"), where("passengerId", "==", user.uid), where("status", "==", "pending"));
+    }, [firestore, user]);
+    const { data: mySentRequests, isLoading: areMySentRequestsLoading } = useCollection<RideRequest>(mySentRequestsQuery);
+
 
     const latestDrivingRide = React.useMemo(() => {
         if (!myDrivingRides || myDrivingRides.length === 0) return null;
         return myDrivingRides.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
     }, [myDrivingRides]);
+    
+    // Combine open requests (in `rides` table) and sent requests (in `rideRequests` table)
+    const latestRequestedItem = React.useMemo(() => {
+        const latestPassengerRide = myPassengerRides?.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        const latestSentRequest = mySentRequests?.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+       
+        if (!latestPassengerRide && !latestSentRequest) return null;
+        if (!latestPassengerRide) return latestSentRequest;
+        if (!latestSentRequest) return latestPassengerRide;
 
-    const latestPassengerRide = React.useMemo(() => {
-        if (!myPassengerRides || myPassengerRides.length === 0) return null;
-        return myPassengerRides.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
-    }, [myPassengerRides]);
+        // Return whichever is newer
+        const rideTime = latestPassengerRide.createdAt?.toDate?.()?.getTime() || 0;
+        const requestTime = latestSentRequest.createdAt?.toDate?.()?.getTime() || 0;
+        return rideTime > requestTime ? latestPassengerRide : latestSentRequest;
+    }, [myPassengerRides, mySentRequests]);
+
 
     const upcomingRides = React.useMemo(() => {
         const allUpcoming = allMyRides?.filter(r => ["pending", "confirmed", "in-progress"].includes(r.status)) || [];
@@ -168,7 +187,7 @@ export default function Dashboard() {
         }
     }, []);
 
-    const isLoading = isUserLoading || isProfileLoading || areMyDrivingRidesLoading || areMyPassengerRidesLoading || areAllMyRidesLoading || areSuggestionsLoading;
+    const isLoading = isUserLoading || isProfileLoading || areMyDrivingRidesLoading || areMyPassengerRidesLoading || areAllMyRidesLoading || areSuggestionsLoading || areMySentRequestsLoading;
 
   return (
     <div className="flex flex-col gap-4 md:gap-8">
@@ -244,7 +263,7 @@ export default function Dashboard() {
         <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
             <MyRideStatusCard 
                 offeredRide={latestDrivingRide}
-                requestedRide={latestPassengerRide}
+                requestedItem={latestRequestedItem}
                 isLoading={isLoading}
             />
           <Card>
@@ -328,11 +347,11 @@ export default function Dashboard() {
 
 function MyRideStatusCard({
     offeredRide,
-    requestedRide,
+    requestedItem,
     isLoading,
 }: {
     offeredRide: Ride | null;
-    requestedRide: Ride | null;
+    requestedItem: Ride | RideRequest | null;
     isLoading: boolean;
 }) {
     if (isLoading) {
@@ -350,7 +369,7 @@ function MyRideStatusCard({
         );
     }
 
-    if (!offeredRide && !requestedRide) {
+    if (!offeredRide && !requestedItem) {
         return (
             <Card className="flex flex-col items-center justify-center min-h-[300px] md:min-h-full">
                 <CardHeader className="text-center">
@@ -384,7 +403,7 @@ function MyRideStatusCard({
                 <Tabs defaultValue={defaultTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="offered" disabled={!offeredRide}>Rides Offered</TabsTrigger>
-                        <TabsTrigger value="requested" disabled={!requestedRide}>Rides Requested</TabsTrigger>
+                        <TabsTrigger value="requested" disabled={!requestedItem}>Rides Requested</TabsTrigger>
                     </TabsList>
                     <TabsContent value="offered" className="mt-4">
                         {offeredRide ? (
@@ -400,8 +419,8 @@ function MyRideStatusCard({
                         )}
                     </TabsContent>
                     <TabsContent value="requested" className="mt-4">
-                        {requestedRide ? (
-                            <RequestedRideView ride={requestedRide} />
+                        {requestedItem ? (
+                            <RequestedRideView item={requestedItem} />
                         ) : (
                              <div className="py-8 text-center">
                                 <EmptyState
@@ -572,43 +591,75 @@ function OfferedRideView({ ride }: { ride: Ride }) {
     );
 }
 
-function RequestedRideView({ ride }: { ride: Ride }) {
+function RequestedRideView({ item }: { item: Ride | RideRequest }) {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isCancelling, setIsCancelling] = React.useState(false);
+    
+    // Determine if the item is a Ride or a RideRequest and get the rideId
+    const isRideRequest = 'rideId' in item;
+    const rideId = isRideRequest ? item.rideId : item.id;
+    
+    // Fetch the main ride document
+    const rideRef = React.useMemo(() => {
+        if (!firestore || !rideId) return null;
+        return doc(firestore, 'rides', rideId);
+    }, [firestore, rideId]);
+    const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideRef);
 
+    // If it's a RideRequest, fetch the driver's profile from the main ride doc
     const driverProfileRef = React.useMemo(() => {
-        if (!firestore || !ride.driverId) return null;
+        if (!firestore || !ride?.driverId) return null;
         return doc(firestore, 'users', ride.driverId);
     }, [firestore, ride]);
 
     const { data: driverProfile, isLoading: isDriverLoading } = useDoc<UserProfile>(driverProfileRef);
     
-    let statusText = ride.status.replace(/_/g, ' ');
-    let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary";
-
-    switch(ride.status) {
-        case 'pending':
-            statusText = ride.driverId ? "Request Sent" : "Pending Driver";
-            badgeVariant = 'secondary';
-            break;
-        case 'confirmed':
-        case 'in-progress':
-        case 'completed':
-            badgeVariant = 'default';
-            break;
-        case 'cancelled':
-            badgeVariant = 'destructive';
-            break;
+    if (isRideLoading) {
+        return <Skeleton className="h-40 w-full" />;
     }
 
+    if (!ride) {
+        return <div className="py-8 text-center">This ride is no longer available.</div>;
+    }
+
+    let statusText: string;
+    let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary";
+
+    if (isRideRequest && item.status === 'pending') {
+        statusText = "Request Sent";
+        badgeVariant = 'secondary';
+    } else {
+        statusText = ride.status.replace(/_/g, ' ');
+         switch(ride.status) {
+            case 'pending':
+                statusText = ride.driverId ? "Request Sent" : "Pending Driver";
+                badgeVariant = 'secondary';
+                break;
+            case 'confirmed':
+            case 'in-progress':
+            case 'completed':
+                badgeVariant = 'default';
+                break;
+            case 'cancelled':
+                badgeVariant = 'destructive';
+                break;
+        }
+    }
+
+
     const handleCancelRequest = async () => {
-        if (!ride || !firestore) return;
+        if (!firestore) return;
         setIsCancelling(true);
 
         try {
-            const rideRef = doc(firestore, 'rides', ride.id);
-            await updateDoc(rideRef, { status: 'cancelled' });
+            if (isRideRequest) {
+                // This is a request for a driver's offer, so delete the rideRequest
+                await deleteDoc(doc(firestore, 'rideRequests', item.id));
+            } else {
+                // This is the user's own open request, so update the ride status
+                await updateDoc(doc(firestore, 'rides', item.id), { status: 'cancelled' });
+            }
              toast({
                 title: "Request Canceled",
                 description: "Your request for this ride has been withdrawn.",
@@ -621,7 +672,7 @@ function RequestedRideView({ ride }: { ride: Ride }) {
         }
     };
     
-    const canCancelRequest = ride.status === 'pending';
+    const canCancelRequest = (isRideRequest && item.status === 'pending') || (!isRideRequest && ride.status === 'pending');
 
     return (
         <div className="space-y-4">
@@ -631,7 +682,7 @@ function RequestedRideView({ ride }: { ride: Ride }) {
                     {' - '}
                     <span>₹{ride.sharedCost}</span>
                 </div>
-                <Badge variant={badgeVariant} className={cn('capitalize', ride.status === 'pending' && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
+                <Badge variant={badgeVariant} className={cn('capitalize', (isRideRequest && item.status === 'pending') && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">

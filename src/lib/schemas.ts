@@ -120,6 +120,32 @@ export interface Ride {
    */
   cancelledAt?: any;
 }
+export interface RideRequest {
+  /**
+   * Unique identifier for the ride request.
+   */
+  id: string;
+  /**
+   * The ID of the ride document being requested.
+   */
+  rideId: string;
+  /**
+   * The UID of the driver offering the ride.
+   */
+  driverId: string;
+  /**
+   * The UID of the passenger making the request.
+   */
+  passengerId: string;
+  /**
+   * The status of the request, managed by the driver.
+   */
+  status: "pending" | "accepted" | "rejected";
+  /**
+   * Timestamp of when the request was made.
+   */
+  createdAt: any;
+}
 export interface ChatMessage {
   /**
    * UID of the user who sent the message.
