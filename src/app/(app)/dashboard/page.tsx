@@ -27,7 +27,7 @@ import {
     XAxis,
     YAxis,
   } from "recharts"
-import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc, updateDoc } from "firebase/firestore"
+import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc, updateDoc, deleteDoc } from "firebase/firestore"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -114,7 +114,7 @@ export default function Dashboard() {
             where("status", "in", ["offering", "pending", "confirmed", "in-progress"])
         );
     }, [firestore, user]);
-    const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myDrivingRides);
+    const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myLatestDrivingRideQuery);
     
     // The latest rides where user is a passenger (confirmed/active) OR it's their own open request
     const myPassengerRidesQuery = React.useMemo(() => {
@@ -840,3 +840,5 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
