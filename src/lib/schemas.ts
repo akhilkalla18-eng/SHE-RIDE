@@ -42,11 +42,11 @@ export interface Ride {
   /**
    * UID of the user who is driving. Null if it's a passenger's open request.
    */
-  driverId: string;
+  driverId: string | null;
   /**
    * UID of the user who is the passenger. Null if it's a driver's open offer.
    */
-  passengerId: string;
+  passengerId: string | null;
   /**
    * Array containing the UIDs of the rider and/or the passenger.
    */

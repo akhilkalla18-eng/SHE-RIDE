@@ -41,7 +41,8 @@ export default function CreateServicePage() {
         const destination = formData.get("destination") as string;
         const maxAmount = Number(formData.get("max-amount")) || 0;
 
-        const newRideRequest: Omit<Ride, "id" | "driverId"> = {
+        const newRideRequest: Omit<Ride, "id"> = {
+            driverId: null,
             passengerId: user.uid,
             participantIds: [user.uid],
             status: 'requested',

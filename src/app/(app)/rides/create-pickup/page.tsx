@@ -38,8 +38,9 @@ export default function CreatePickupPage() {
         const date = formData.get("date") as string;
         const time = formData.get("time") as string;
 
-        const newRideOffer: Omit<Ride, "id" | "passengerId"> = {
+        const newRideOffer: Omit<Ride, "id"> = {
             driverId: user.uid,
+            passengerId: null,
             participantIds: [user.uid],
             status: 'offering',
             fromLocation: formData.get("start-location") as string,
