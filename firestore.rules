@@ -213,8 +213,8 @@ service cloud.firestore {
       // We trust the client-side logic that triggers this to be correct.
       allow create: if request.auth != null;
 
-      // DELETE: Deleting notifications from the client is not allowed to preserve history.
-      allow delete: if false;
+      // DELETE: A user can delete their own notification documents.
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }

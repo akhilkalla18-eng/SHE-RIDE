@@ -5,7 +5,7 @@ import React from "react"
 import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,12 +27,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
-import { Bell, LifeBuoy, LogOut, TriangleAlert, User } from "lucide-react"
+import { Bell, LifeBuoy, LogOut, TriangleAlert, User, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { useUser, useAuth, useDoc, useFirestore, useCollection } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { doc, collection, query, where, updateDoc } from "firebase/firestore";
+import { doc, collection, query, where, updateDoc, writeBatch } from "firebase/firestore";
 import type { UserProfile, Notification } from "@/lib/schemas";
 import { Skeleton } from "./ui/skeleton"
 import { formatDistanceToNow } from "date-fns"
@@ -43,6 +43,7 @@ export function AppHeader() {
     const { user, isUserLoading } = useUser();
     const auth = useAuth();
     const firestore = useFirestore();
+    const [isClearing, setIsClearing] = React.useState(false);
 
     const userProfileRef = React.useMemo(() => {
         if (!user || !firestore) return null;
@@ -92,6 +93,37 @@ export function AppHeader() {
         }
     };
 
+    const handleClearAllNotifications = async () => {
+        if (!firestore || !user || !notifications || notifications.length === 0) return;
+        setIsClearing(true);
+
+        try {
+            const batch = writeBatch(firestore);
+            
+            notifications.forEach(notif => {
+                const notifRef = doc(firestore, 'notifications', notif.id);
+                batch.delete(notifRef);
+            });
+
+            await batch.commit();
+
+            toast({
+                title: "Notifications Cleared",
+                description: "Your notification list is now empty.",
+            });
+
+        } catch (error) {
+            console.error("Failed to clear notifications:", error);
+            toast({
+                variant: "destructive",
+                title: "Clear Failed",
+                description: "Could not clear your notifications. Please try again."
+            });
+        } finally {
+            setIsClearing(false);
+        }
+    }
+
 
     const handleSosClick = () => {
         toast({
@@ -137,19 +169,49 @@ export function AppHeader() {
           {areNotificationsLoading ? (
             <DropdownMenuItem>Loading...</DropdownMenuItem>
           ) : notifications && notifications.length > 0 ? (
-             notifications.map(n => (
-                <DropdownMenuItem key={n.id} className={`flex items-start gap-2 cursor-pointer ${!n.isRead && 'font-semibold'}`} onClick={() => handleNotificationClick(n)}>
-                    <div className={`mt-1 h-2 w-2 rounded-full ${!n.isRead ? 'bg-primary' : 'bg-transparent'}`} />
-                    <div>
-                        <p className="text-sm leading-snug whitespace-normal">{n.message}</p>
-                        <p className="text-xs text-muted-foreground">
-                            {n.createdAt?.toDate ? formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true }) : 'just now'}
-                        </p>
-                    </div>
+            <>
+                {notifications.map(n => (
+                    <DropdownMenuItem key={n.id} className={`flex items-start gap-2 cursor-pointer ${!n.isRead && 'font-semibold'}`} onClick={() => handleNotificationClick(n)}>
+                        <div className={`mt-1 h-2 w-2 rounded-full ${!n.isRead ? 'bg-primary' : 'bg-transparent'}`} />
+                        <div>
+                            <p className="text-sm leading-snug whitespace-normal">{n.message}</p>
+                            <p className="text-xs text-muted-foreground">
+                                {n.createdAt?.toDate ? formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true }) : 'just now'}
+                            </p>
+                        </div>
+                    </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="p-1 focus:bg-transparent">
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                           <Button variant="outline" size="sm" className="w-full" disabled={isClearing}>
+                             {isClearing && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                             Clear All
+                           </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Clear All Notifications?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete all your notifications.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                    onClick={handleClearAllNotifications}
+                                    className={buttonVariants({ variant: "destructive" })}
+                                >
+                                    Confirm
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </DropdownMenuItem>
-            ))
+             </>
           ) : (
-            <DropdownMenuItem>No new notifications</DropdownMenuItem>
+            <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
