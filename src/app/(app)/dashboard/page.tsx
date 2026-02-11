@@ -109,15 +109,17 @@ export default function Dashboard() {
     
     const myPickupRequestsQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
-        return query(collection(firestore, "pickupRequests"), where("userProfileId", "==", user.uid));
+        return query(
+            collection(firestore, "pickupRequests"), 
+            where("userProfileId", "==", user.uid),
+            where("status", "in", ["open", "matched"])
+        );
     }, [firestore, user]);
     const { data: myPickupRequests, isLoading: areMyPickupsLoading } = useCollection<PickupRequest>(myPickupRequestsQuery);
     
     const latestActiveOffer = React.useMemo(() => {
-        if (!myPickupRequests) return null;
-        const active = myPickupRequests.filter(r => ['open', 'matched'].includes(r.status));
-        if (active.length === 0) return null;
-        return active.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        if (!myPickupRequests || myPickupRequests.length === 0) return null;
+        return myPickupRequests.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
     }, [myPickupRequests]);
 
 
@@ -136,15 +138,17 @@ export default function Dashboard() {
 
     const myRequestedRidesQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
-        return query(collection(firestore, "rides"), where("passengerId", "==", user.uid));
+        return query(
+            collection(firestore, "rides"), 
+            where("passengerId", "==", user.uid),
+            where("status", "in", ["requested", "accepted", "confirmed"])
+        );
     }, [firestore, user]);
     const { data: myRequestedRides, isLoading: areMyRequestsLoading } = useCollection<Ride>(myRequestedRidesQuery);
 
     const latestRequestedRide = React.useMemo(() => {
         if (!myRequestedRides || myRequestedRides.length === 0) return null;
-        const active = myRequestedRides.filter(r => ['requested', 'accepted', 'confirmed'].includes(r.status));
-        if (active.length === 0) return null;
-        return active.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        return myRequestedRides.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
     }, [myRequestedRides]);
 
 

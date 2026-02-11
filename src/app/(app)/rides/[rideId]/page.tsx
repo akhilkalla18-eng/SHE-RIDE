@@ -167,24 +167,20 @@ function RideDetailPage() {
             // 1. Update the ride status to cancelled
             batch.update(rideRef, { status: newStatus });
     
-            // 2. Re-open the original request if the ride was confirmed
-            if (ride.status === 'accepted' || ride.status === 'confirmed') {
-                if (ride.pickupRequestId) {
-                    const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
-                    batch.update(pickupRequestRef, { 
-                        status: 'open',
-                        matchedPassengerId: null,
-                        rejectedBy: []
-                    });
-                }
-                if (ride.serviceRequestId) {
-                    const serviceRequestRef = doc(firestore, 'serviceRequests', ride.serviceRequestId);
-                    batch.update(serviceRequestRef, {
-                        status: 'open',
-                        matchedDriverId: null,
-                        rejectedBy: []
-                    });
-                }
+            // 2. Set original request to cancelled
+            if (ride.pickupRequestId) {
+                const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
+                batch.update(pickupRequestRef, { 
+                    status: 'cancelled',
+                    matchedPassengerId: deleteField()
+                });
+            }
+            if (ride.serviceRequestId) {
+                const serviceRequestRef = doc(firestore, 'serviceRequests', ride.serviceRequestId);
+                batch.update(serviceRequestRef, {
+                    status: 'cancelled',
+                    matchedDriverId: deleteField()
+                });
             }
             
             // 3. Send notification to the other party
