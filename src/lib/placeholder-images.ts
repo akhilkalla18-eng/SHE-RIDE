@@ -1,5 +1,3 @@
-import data from './placeholder-images.json';
-
 export type ImagePlaceholder = {
   id: string;
   description: string;
@@ -7,4 +5,41 @@ export type ImagePlaceholder = {
   imageHint: string;
 };
 
-export const placeholderImages: ImagePlaceholder[] = data.placeholderImages;
+export const placeholderImages: ImagePlaceholder[] = [
+  {
+    id: 'hero',
+    description: 'Two smiling women wearing helmets share a scooter ride through a city, embodying the safe and friendly community of SheRide.',
+    imageUrl: 'https://images.unsplash.com/photo-1618357062486-574345719a9a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx0d28lMjB3b21lbiUyMG9uJTIwc2Nvb3RlciUyMGluZGlhfGVufDB8fHx8MTcyMDczMTg5OHww&ixlib=rb-4.0.3&q=80&w=1080',
+    imageHint: 'women scooter travel'
+  },
+  {
+    id: 'safety',
+    description: 'A woman rider passing a helmet to another woman with a smile, showcasing the platform\'s emphasis on safety and trust.',
+    imageUrl: 'https://images.unsplash.com/photo-1550165946-6c770414edb8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx3b21lbiUyMGhlbG1ldCUyMHNhZmV0eXxlbnwwfHx8fDE3NjkxNzU1MTd8MA&ixlib=rb-4.1.0&q=80&w=1080',
+    imageHint: 'women helmet safety'
+  },
+  {
+    id: 'avatar1',
+    description: 'Portrait of a smiling Indian woman in a professional setting, representing a SheRide user.',
+    imageUrl: 'https://images.unsplash.com/photo-1618284594047-86b43b59c4c7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxzbWlsaW5nJTIwaW5kaWFuJTIwd29tYW58ZW58MHx8fHwxNzY5MjU5ODg5fDA&ixlib=rb-4.1.0&q=80&w=1080',
+    imageHint: 'indian woman smiling'
+  },
+  {
+    id: 'avatar2',
+    description: 'Portrait of a confident young woman in an urban Indian city, representing a SheRide commuter.',
+    imageUrl: 'https://images.unsplash.com/photo-161517306334-9f2639f75f78?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx5b3VuZyUyMGluZGlhbiUyMHdvbWFuJTIwdXJiYW58ZW58MHx8fHwxNzY5MjYwMDgyfDA&ixlib=rb-4.1.0&q=80&w=1080',
+    imageHint: 'indian woman urban'
+  },
+  {
+    id: 'avatar3',
+    description: 'A woman enjoying her travel in a modern Indian city, representing a happy SheRide member.',
+    imageUrl: 'https://images.unsplash.com/photo-1626543419084-9d554a938637?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHx3b21hbiUyMHRyYXZlbCUyMGluZGlhbiUyMGNpdHl8ZW58MHx8fHwxNzY5MjYwMjIxfDA&ixlib=rb-4.1.0&q=80&w=1080',
+    imageHint: 'woman travel city'
+  },
+  {
+    id: 'auth',
+    description: 'A stylish shot of a woman riding a scooter, seen from the side, representing independence and modern travel.',
+    imageUrl: 'https://images.unsplash.com/photo-1671866604416-57a3fab71706?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHx3b21hbiUyMHJpZGluZyUyMHNjb290ZXJ8ZW58MHx8fHwxNzY5MTc1NTE3fDA&ixlib=rb-4.1.0&q=80&w=1080',
+    imageHint: 'woman riding scooter'
+  }
+];
