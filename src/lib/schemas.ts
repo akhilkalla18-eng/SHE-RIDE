@@ -83,6 +83,10 @@ export interface PickupRequest {
    * List of user IDs who have rejected this request.
    */
   rejectedBy?: string[];
+  /**
+   * The UID of the passenger who has been matched with this ride offer.
+   */
+  matchedPassengerId?: string;
 }
 export interface ServiceRequest {
   /**
@@ -125,6 +129,10 @@ export interface ServiceRequest {
    * List of user IDs who have rejected this request.
    */
   rejectedBy?: string[];
+  /**
+   * The UID of the driver who has been matched with this service request.
+   */
+  matchedDriverId?: string;
 }
 export interface Ride {
   /**

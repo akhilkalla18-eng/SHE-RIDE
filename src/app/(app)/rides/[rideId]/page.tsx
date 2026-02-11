@@ -4,8 +4,8 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser } from '@/firebase';
-import { doc, updateDoc, addDoc, collection, serverTimestamp, writeBatch, query, where, getDocs } from 'firebase/firestore';
-import type { Ride, UserProfile, Notification } from '@/lib/schemas';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, writeBatch, query, where, getDocs, deleteField } from 'firebase/firestore';
+import type { Ride, UserProfile, Notification, PickupRequest } from '@/lib/schemas';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -92,13 +92,13 @@ function RideDetailPage() {
             // This handles acceptances for service requests, which are simpler
             if (ride.serviceRequestId) {
                 const serviceRequestRef = doc(firestore, 'serviceRequests', ride.serviceRequestId);
-                batch.update(serviceRequestRef, { status: 'matched' });
+                batch.update(serviceRequestRef, { status: 'matched', matchedDriverId: ride.driverId });
             }
             
             // This handles the more complex case of accepting one offer among many requests
             if (ride.pickupRequestId) {
                 const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
-                batch.update(pickupRequestRef, { status: 'matched' });
+                batch.update(pickupRequestRef, { status: 'matched', matchedPassengerId: ride.passengerId });
                 
                 // Find and cancel other pending requests for the same offer
                 const otherRequestsQuery = query(
@@ -108,14 +108,19 @@ function RideDetailPage() {
                 );
                 const otherRequestsSnapshot = await getDocs(otherRequestsQuery);
                 const notificationsCollection = collection(firestore, "notifications");
+                
+                // Collect all passenger IDs that will be rejected to clear them from the main pickup request
+                const rejectedPassengerIds: string[] = [];
     
                 otherRequestsSnapshot.forEach(rideDoc => {
                     if (rideDoc.id === ride.id) return; // Don't cancel the one we're accepting
     
                     const otherRideRef = doc(firestore, 'rides', rideDoc.id);
                     batch.update(otherRideRef, { status: 'cancelled_by_provider' });
-    
+                    
                     const rideData = rideDoc.data() as Ride;
+                    rejectedPassengerIds.push(rideData.passengerId);
+
                     const newNotification: Omit<Notification, 'id'> = {
                         userId: rideData.passengerId, // Notify the passenger
                         rideId: rideDoc.id,
@@ -128,6 +133,11 @@ function RideDetailPage() {
                     const newNotifRef = doc(notificationsCollection);
                     batch.set(newNotifRef, newNotification);
                 });
+
+                 // Add the rejected passenger IDs to the pickup request's `rejectedBy` field.
+                if (rejectedPassengerIds.length > 0) {
+                     batch.update(pickupRequestRef, { rejectedBy: rejectedPassengerIds });
+                }
             }
             
             await batch.commit();
@@ -147,19 +157,42 @@ function RideDetailPage() {
 
     const handleCancel = async () => {
         if (!rideRef || !firestore || !user || !ride || !driverProfile || !passengerProfile) return;
+        
         setIsUpdating(true);
+        const batch = writeBatch(firestore);
+    
         try {
             const newStatus = isCurrentUserDriver ? 'cancelled_by_provider' : 'cancelled_by_passenger';
-            await updateDoc(rideRef, { status: newStatus });
-
+            
+            // 1. Update the ride status to cancelled
+            batch.update(rideRef, { status: newStatus });
+    
+            // 2. Re-open the original request if the ride was confirmed
+            if (ride.status === 'accepted' || ride.status === 'confirmed') {
+                if (ride.pickupRequestId) {
+                    const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
+                    batch.update(pickupRequestRef, { 
+                        status: 'open',
+                        matchedPassengerId: null,
+                        rejectedBy: []
+                    });
+                }
+                if (ride.serviceRequestId) {
+                    const serviceRequestRef = doc(firestore, 'serviceRequests', ride.serviceRequestId);
+                    batch.update(serviceRequestRef, {
+                        status: 'open',
+                        matchedDriverId: null,
+                        rejectedBy: []
+                    });
+                }
+            }
+            
+            // 3. Send notification to the other party
             const isCancellingPendingRequest = ride.status === 'requested' && isCurrentUserPassenger;
-
-            // Only notify if the ride was already accepted, or if a driver cancels a pending request on a passenger.
             if (!isCancellingPendingRequest) {
                 const otherUserId = isCurrentUserDriver ? ride.passengerId : ride.driverId;
                 const currentUserProfile = isCurrentUserDriver ? driverProfile : passengerProfile;
                 
-                const notificationsCollection = collection(firestore, "notifications");
                 const newNotification: Omit<Notification, 'id'> = {
                     userId: otherUserId,
                     rideId: ride.id,
@@ -169,14 +202,18 @@ function RideDetailPage() {
                     isRead: false,
                     createdAt: serverTimestamp()
                 };
-                await addDoc(notificationsCollection, newNotification);
+                const newNotifRef = doc(collection(firestore, "notifications"));
+                batch.set(newNotifRef, newNotification);
             }
-
-
+    
+            // 4. Commit all changes
+            await batch.commit();
+    
             toast({
                 title: 'Ride Canceled',
                 description: 'The ride has been successfully canceled.'
             });
+    
         } catch (error) {
             console.error("Failed to cancel ride", error);
             toast({ variant: 'destructive', title: 'Cancellation Failed', description: 'Could not update the ride status.' });

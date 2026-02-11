@@ -31,11 +31,20 @@ service cloud.firestore {
       // CREATE: An authenticated user can create a ride offer for themselves.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
 
-      // UPDATE: The owner can update their own offer. Another user (the accepting driver)
-      // can also update the status to 'matched' as part of the ride acceptance flow.
+      // UPDATE: Permissions for updating a pickup request.
       allow update: if request.auth != null && (
-                      (resource.data.userProfileId == request.auth.uid) ||
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'matched') ||
+                      // Case 1: The owner of the request can make any changes.
+                      // This covers creating, editing, cancelling, and accepting a request (moving to 'matched').
+                      resource.data.userProfileId == request.auth.uid ||
+                      
+                      // Case 2: The matched passenger can cancel, which reverts the request back to 'open'.
+                      (
+                        resource.data.status == 'matched' && 
+                        resource.data.matchedPassengerId == request.auth.uid &&
+                        request.resource.data.status == 'open'
+                      ) ||
+                      
+                      // Case 3: Any authenticated user can add themselves to the 'rejectedBy' list.
                       (
                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rejectedBy']) &&
                         request.auth.uid in request.resource.data.rejectedBy
@@ -57,11 +66,19 @@ service cloud.firestore {
       // CREATE: An authenticated user can create a ride request for themselves.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
       
-      // UPDATE: The owner can update their own request. Another user (the accepting driver)
-      // can also update the status to 'matched' as part of the ride acceptance flow.
+      // UPDATE: Permissions for updating a service request.
       allow update: if request.auth != null && (
-                      (resource.data.userProfileId == request.auth.uid) ||
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'matched') ||
+                      // Case 1: The owner of the request can make changes.
+                      resource.data.userProfileId == request.auth.uid ||
+                      
+                      // Case 2: The matched driver can cancel, which reverts the request back to 'open'.
+                      (
+                        resource.data.status == 'matched' &&
+                        resource.data.matchedDriverId == request.auth.uid &&
+                        request.resource.data.status == 'open'
+                      ) ||
+
+                      // Case 3: Any authenticated user can add themselves to the 'rejectedBy' list.
                       (
                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rejectedBy']) &&
                         request.auth.uid in request.resource.data.rejectedBy
