@@ -1,3 +1,4 @@
+
 "use client"
 
 import React from "react";
@@ -8,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import type { ServiceRequest } from "@/lib/schemas";
+import { collection, serverTimestamp, doc, writeBatch } from "firebase/firestore";
+import type { ServiceRequest, Ride } from "@/lib/schemas";
 import { Loader2 } from "lucide-react";
 
 export default function CreateServicePage() {
@@ -34,35 +35,62 @@ export default function CreateServicePage() {
         const formData = new FormData(e.currentTarget);
         const date = formData.get("date") as string;
         const time = formData.get("time") as string;
+        const rideDateTime = new Date(`${date}T${time}`).toISOString();
+        
+        const pickupLocation = formData.get("pickup-location") as string;
+        const destination = formData.get("destination") as string;
+        const maxAmount = Number(formData.get("max-amount")) || 0;
 
-        const newRequest: Omit<ServiceRequest, "id"> = {
+        const serviceRequestsCollection = collection(firestore, "serviceRequests");
+        const serviceRequestRef = doc(serviceRequestsCollection);
+
+        const ridesCollection = collection(firestore, "rides");
+        const rideRef = doc(ridesCollection);
+
+        const newServiceRequestData: Omit<ServiceRequest, "id"> = {
             userProfileId: user.uid,
-            pickupLocation: formData.get("pickup-location") as string,
-            destination: formData.get("destination") as string,
-            dateTime: new Date(`${date}T${time}`).toISOString(),
-            maxAmountWillingToPay: Number(formData.get("max-amount")) || 0,
+            pickupLocation: pickupLocation,
+            destination: destination,
+            dateTime: rideDateTime,
+            maxAmountWillingToPay: maxAmount,
             preferredRoute: formData.get("route") as string || '',
             status: 'open',
+            createdAt: serverTimestamp(),
+            rideId: rideRef.id,
+        };
+
+        const newRideData: Omit<Ride, "id"> = {
+            driverId: "", // No driver yet
+            passengerId: user.uid,
+            participantIds: [user.uid],
+            serviceRequestId: serviceRequestRef.id,
+            status: 'requested',
+            sharedCost: maxAmount,
+            dateTime: rideDateTime,
+            fromLocation: pickupLocation,
+            toLocation: destination,
             createdAt: serverTimestamp(),
         };
 
         try {
-            await addDoc(collection(firestore, "serviceRequests"), newRequest);
+            const batch = writeBatch(firestore);
+            batch.set(serviceRequestRef, newServiceRequestData);
+            batch.set(rideRef, newRideData);
+            await batch.commit();
+
             toast({
                 title: "Service Request Created",
-                description: "Your ride request has been posted. We'll notify you about matching offers.",
+                description: "Your ride request has been posted and is now visible in your dashboard.",
             });
             router.push("/dashboard");
         } catch (error) {
-            console.error("Error creating service request:", error);
+            console.error("Error creating service request and ride:", error);
              const contextualError = new FirestorePermissionError({
-              path: 'serviceRequests',
+              path: `rides`, // Check ride creation rules first
               operation: 'create',
-              requestResourceData: newRequest
+              requestResourceData: newRideData
             });
             errorEmitter.emit('permission-error', contextualError);
-            // A toast is not required here because the FirebaseErrorListener
-            // will catch the emitted error and display a detailed overlay.
         } finally {
             setIsSubmitting(false);
         }

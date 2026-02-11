@@ -126,6 +126,10 @@ export interface ServiceRequest {
    */
   createdAt: any;
   /**
+   * Reference to the associated ride document.
+   */
+  rideId?: string;
+  /**
    * List of user IDs who have rejected this request.
    */
   rejectedBy?: string[];

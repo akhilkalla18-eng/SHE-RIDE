@@ -13,7 +13,7 @@ import { placeholderImages } from "@/lib/placeholder-images";
 import { UserProfile, PickupRequest, ServiceRequest, Ride } from "@/lib/schemas";
 import { ArrowRight, Bike, Search, User as UserIcon, Coins } from "lucide-react";
 import React from "react";
-import { collection, query, where, doc, addDoc, serverTimestamp, updateDoc, arrayUnion, setDoc } from "firebase/firestore";
+import { collection, query, where, doc, serverTimestamp, updateDoc, arrayUnion, setDoc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 type CombinedRequest = (PickupRequest | ServiceRequest) & { type: 'pickup' | 'service' };
@@ -250,38 +250,44 @@ function SuggestionCard({ ride, myRequestedPickupIds }: { ride: CombinedRequest,
         }
         setIsSubmitting(true);
     
-        let resourceData: any = {};
         try {
             if (ride.type === 'service') { // Current user is Driver, accepting a passenger's request
-                resourceData = {
+                const serviceRequest = ride as ServiceRequest;
+                if (!serviceRequest.rideId) {
+                    throw new Error("Associated ride ID is missing from this service request.");
+                }
+
+                const rideRef = doc(firestore, 'rides', serviceRequest.rideId);
+                const serviceRequestRef = doc(firestore, 'serviceRequests', serviceRequest.id);
+
+                const batch = writeBatch(firestore);
+
+                // Update the Ride document
+                batch.update(rideRef, {
                     driverId: user.uid,
-                    passengerId: ride.userProfileId,
-                    participantIds: [user.uid, ride.userProfileId],
-                    serviceRequestId: ride.id,
+                    participantIds: arrayUnion(user.uid),
                     status: 'accepted',
-                    sharedCost: ride.maxAmountWillingToPay,
-                    dateTime: ride.dateTime,
-                    fromLocation: ride.pickupLocation,
-                    toLocation: ride.destination,
-                    createdAt: serverTimestamp(),
-                    acceptedAt: serverTimestamp(),
-                };
-                
-                const ridesCollection = collection(firestore, "rides");
-                await addDoc(ridesCollection, resourceData);
-        
-                const requestRef = doc(firestore, 'serviceRequests', ride.id);
-                await updateDoc(requestRef, { status: 'matched' });
-        
+                    acceptedAt: serverTimestamp()
+                });
+
+                // Update the ServiceRequest document
+                batch.update(serviceRequestRef, { 
+                    status: 'matched',
+                    matchedDriverId: user.uid
+                });
+
+                await batch.commit();
+
                 toast({
                     title: "Success!",
                     description: "Ride accepted! The user will be notified.",
                 });
+
             } else { // Current user is Passenger, requesting a spot from a driver
                 const rideId = `${ride.id}_${user.uid}`;
                 const rideRef = doc(firestore, 'rides', rideId);
                 
-                resourceData = {
+                const resourceData: Omit<Ride, 'id'> = {
                     driverId: ride.userProfileId,
                     passengerId: user.uid,
                     participantIds: [user.uid, ride.userProfileId],
@@ -294,8 +300,6 @@ function SuggestionCard({ ride, myRequestedPickupIds }: { ride: CombinedRequest,
                     createdAt: serverTimestamp(),
                 };
                 
-                // Using setDoc with a specific composite ID ensures a user can only request once.
-                // The security rule will fail any subsequent attempts.
                 await setDoc(rideRef, resourceData);
         
                 toast({
@@ -304,11 +308,11 @@ function SuggestionCard({ ride, myRequestedPickupIds }: { ride: CombinedRequest,
                 });
             }
         } catch (error) {
-            console.error("Error creating ride:", error);
+            console.error("Error handling request/acceptance:", error);
             const contextualError = new FirestorePermissionError({
-              path: 'rides',
-              operation: 'create',
-              requestResourceData: resourceData
+              path: ride.type === 'service' ? `rides/${(ride as ServiceRequest).rideId}` : 'rides',
+              operation: ride.type === 'service' ? 'update' : 'create',
+              requestResourceData: { status: 'accepted' } // simplified data for error
             });
             errorEmitter.emit('permission-error', contextualError);
         } finally {

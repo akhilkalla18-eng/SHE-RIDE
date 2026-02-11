@@ -77,6 +77,7 @@
         "preferredRoute": { "type": "string", "description": "Passenger's preferred route." },
         "status": { "type": "string", "enum": ["open", "matched", "cancelled"], "description": "The current status of the request (e.g., 'open', 'matched', 'cancelled')." },
          "createdAt": { "type": "any", "description": "Timestamp of when the request was created."},
+         "rideId": { "type": "string", "description": "Reference to the associated ride document." },
          "rejectedBy": { "type": "array", "items": { "type": "string" }, "description": "List of user IDs who have rejected this request." },
          "matchedDriverId": { "type": "string", "description": "The UID of the driver who has been matched with this service request." }
       },

@@ -110,51 +110,67 @@ service cloud.firestore {
 
       // CREATE: A ride can be created by a participant.
       allow create: if request.auth != null && isParticipant() && (
+        // Case 1: Passenger requests a spot on a driver's PICKUP offer
         (
           request.resource.data.pickupRequestId != null &&
           isRequestingPassenger() &&
           rideId == request.resource.data.pickupRequestId + '_' + request.resource.data.passengerId
         ) ||
+        // Case 2: Passenger creates a SERVICE request, which also creates a 'requested' ride
         (
           request.resource.data.serviceRequestId != null &&
-          isAcceptingDriver()
+          isRequestingPassenger() &&
+          request.resource.data.driverId == ""
         )
       );
 
       // UPDATE: Permissions for updating a ride document.
-      allow update: if request.auth != null && request.auth.uid in resource.data.participantIds
-                      && (
-                        // Driver accepts a pending request
-                        (
-                          request.resource.data.status == 'accepted' &&
-                          resource.data.status == 'requested' &&
-                          resource.data.driverId == request.auth.uid &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt'])
-                        ) ||
-                        // Passenger cancels their own pending request
-                        (
-                          request.resource.data.status == 'cancelled_by_passenger' &&
-                          resource.data.status == 'requested' &&
-                          resource.data.passengerId == request.auth.uid &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-                        ) ||
-                        // Driver auto-cancels other pending requests during batch update
-                        (
-                          request.resource.data.status == 'cancelled_by_provider' &&
-                          resource.data.status == 'requested' &&
-                          resource.data.driverId == request.auth.uid &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-                        ) ||
-                         // Either participant cancels an already accepted/confirmed ride
-                        (
-                          (
-                            request.resource.data.status == 'cancelled_by_passenger' ||
-                            request.resource.data.status == 'cancelled_by_provider'
-                          ) &&
-                          (resource.data.status == 'accepted' || resource.data.status == 'confirmed') &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-                        )
-                      );
+      allow update: if request.auth != null && (
+          // Condition A: A driver is accepting a passenger's service request.
+          (
+              resource.data.status == 'requested' &&
+              resource.data.serviceRequestId != null &&
+              request.resource.data.status == 'accepted' &&
+              request.resource.data.driverId == request.auth.uid && // The user making the request is the new driver
+              ! (request.auth.uid in resource.data.participantIds) && // Driver is not yet a participant
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'driverId', 'participantIds', 'acceptedAt'])
+          ) ||
+          // Condition B: An existing participant is updating the ride.
+          (
+              request.auth.uid in resource.data.participantIds && (
+                  // B.1: Driver accepts a pickup request
+                  (
+                    request.resource.data.status == 'accepted' &&
+                    resource.data.status == 'requested' &&
+                    resource.data.driverId == request.auth.uid &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt'])
+                  ) ||
+                  // B.2: Passenger cancels their own pending request
+                  (
+                    request.resource.data.status == 'cancelled_by_passenger' &&
+                    resource.data.status == 'requested' &&
+                    resource.data.passengerId == request.auth.uid &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                  ) ||
+                  // B.3: Driver auto-cancels other pending requests during batch update
+                  (
+                    request.resource.data.status == 'cancelled_by_provider' &&
+                    resource.data.status == 'requested' &&
+                    resource.data.driverId == request.auth.uid &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                  ) ||
+                   // B.4: Either participant cancels an already accepted/confirmed ride
+                  (
+                    (
+                      request.resource.data.status == 'cancelled_by_passenger' ||
+                      request.resource.data.status == 'cancelled_by_provider'
+                    ) &&
+                    (resource.data.status == 'accepted' || resource.data.status == 'confirmed') &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                  )
+              )
+          )
+      );
     }
 
     // --- Rules for Chats ---
