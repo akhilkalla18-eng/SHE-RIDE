@@ -13,7 +13,7 @@ import { placeholderImages } from "@/lib/placeholder-images";
 import { UserProfile, PickupRequest, ServiceRequest, Ride } from "@/lib/schemas";
 import { ArrowRight, Bike, Search, User as UserIcon, Coins } from "lucide-react";
 import React from "react";
-import { collection, query, where, doc, addDoc, serverTimestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, query, where, doc, addDoc, serverTimestamp, updateDoc, arrayUnion, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 type CombinedRequest = (PickupRequest | ServiceRequest) & { type: 'pickup' | 'service' };
@@ -74,6 +74,27 @@ export default function SuggestionsPage() {
         );
     }, [firestore, user]);
     const {data: serviceRequests, isLoading: areServicesLoading} = useCollection<ServiceRequest>(serviceRequestsQuery);
+
+    const myRidesQuery = React.useMemo(() => {
+        if (!user || !firestore) return null;
+        // This query is allowed by the security rule: `where("participantIds", "array-contains", user.uid)`
+        return query(
+            collection(firestore, "rides"),
+            where("participantIds", "array-contains", user.uid)
+        );
+    }, [firestore, user]);
+    const { data: myRides, isLoading: areMyRidesLoading } = useCollection<Ride>(myRidesQuery);
+
+    // From all my rides, create a Set of pickupRequestIds where I was the passenger and the status is 'requested'.
+    // This allows O(1) lookup to check if I've already requested a specific ride offer.
+    const myRequestedPickupIds = React.useMemo(() => {
+        if (!myRides || !user) return new Set<string>();
+        return new Set(
+            myRides
+                .filter(r => r.passengerId === user.uid && r.pickupRequestId && r.status === 'requested')
+                .map(r => r.pickupRequestId!)
+        );
+    }, [myRides, user]);
     
     // Memoize Ride Offers (Pickups)
     const rideOffers = React.useMemo(() => {
@@ -111,7 +132,7 @@ export default function SuggestionsPage() {
     }, [rideRequests, searchTerm]);
 
 
-    const isLoading = arePickupsLoading || areServicesLoading || isUserLoading;
+    const isLoading = arePickupsLoading || areServicesLoading || isUserLoading || areMyRidesLoading;
 
     return (
         <div className="container mx-auto">
@@ -144,7 +165,7 @@ export default function SuggestionsPage() {
                             Array.from({ length: 3 }).map((_, i) => <SuggestionSkeleton key={i} />)
                         ) : filteredRideRequests.length > 0 ? (
                             filteredRideRequests.map((ride) => (
-                                <SuggestionCard key={ride.id} ride={ride as CombinedRequest} />
+                                <SuggestionCard key={ride.id} ride={ride as CombinedRequest} myRequestedPickupIds={myRequestedPickupIds} />
                             ))
                         ) : (
                            <EmptyState 
@@ -161,7 +182,7 @@ export default function SuggestionsPage() {
                             Array.from({ length: 3 }).map((_, i) => <SuggestionSkeleton key={i} />)
                         ) : filteredRideOffers.length > 0 ? (
                             filteredRideOffers.map((ride) => (
-                                <SuggestionCard key={ride.id} ride={ride as CombinedRequest} />
+                                <SuggestionCard key={ride.id} ride={ride as CombinedRequest} myRequestedPickupIds={myRequestedPickupIds} />
                             ))
                         ) : (
                            <EmptyState 
@@ -176,7 +197,7 @@ export default function SuggestionsPage() {
     );
 }
 
-function SuggestionCard({ ride }: { ride: CombinedRequest }) {
+function SuggestionCard({ ride, myRequestedPickupIds }: { ride: CombinedRequest, myRequestedPickupIds: Set<string> }) {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
@@ -229,61 +250,81 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
         }
         setIsSubmitting(true);
     
-        let newRide: Omit<Ride, 'id'>;
-    
-        if (ride.type === 'service') { // Current user is Driver, accepting a passenger's request
-            newRide = {
-                driverId: user.uid,
-                passengerId: ride.userProfileId,
-                participantIds: [user.uid, ride.userProfileId],
-                serviceRequestId: ride.id,
-                status: 'accepted',
-                sharedCost: ride.maxAmountWillingToPay,
-                dateTime: ride.dateTime,
-                fromLocation: ride.pickupLocation,
-                toLocation: ride.destination,
-                createdAt: serverTimestamp(),
-            };
-        } else { // Current user is Passenger, requesting a spot from a driver
-            newRide = {
-                driverId: ride.userProfileId,
-                passengerId: user.uid,
-                participantIds: [user.uid, ride.userProfileId],
-                pickupRequestId: ride.id,
-                status: 'requested',
-                sharedCost: (ride as PickupRequest).expectedCost || 0,
-                dateTime: ride.dateTime,
-                fromLocation: (ride as PickupRequest).startingLocation,
-                toLocation: ride.destination,
-                createdAt: serverTimestamp(),
-            };
-        }
-    
+        let resourceData: any = {};
         try {
-            const ridesCollection = collection(firestore, "rides");
-            await addDoc(ridesCollection, newRide);
-    
-            if (ride.type === 'service') {
+            if (ride.type === 'service') { // Current user is Driver, accepting a passenger's request
+                resourceData = {
+                    driverId: user.uid,
+                    passengerId: ride.userProfileId,
+                    participantIds: [user.uid, ride.userProfileId],
+                    serviceRequestId: ride.id,
+                    status: 'accepted',
+                    sharedCost: ride.maxAmountWillingToPay,
+                    dateTime: ride.dateTime,
+                    fromLocation: ride.pickupLocation,
+                    toLocation: ride.destination,
+                    createdAt: serverTimestamp(),
+                    acceptedAt: serverTimestamp(),
+                };
+                
+                const ridesCollection = collection(firestore, "rides");
+                await addDoc(ridesCollection, resourceData);
+        
                 const requestRef = doc(firestore, 'serviceRequests', ride.id);
                 await updateDoc(requestRef, { status: 'matched' });
+        
+                toast({
+                    title: "Success!",
+                    description: "Ride accepted! The user will be notified.",
+                });
+            } else { // Current user is Passenger, requesting a spot from a driver
+                const rideId = `${ride.id}_${user.uid}`;
+                const rideRef = doc(firestore, 'rides', rideId);
+                
+                resourceData = {
+                    driverId: ride.userProfileId,
+                    passengerId: user.uid,
+                    participantIds: [user.uid, ride.userProfileId],
+                    pickupRequestId: ride.id,
+                    status: 'requested',
+                    sharedCost: (ride as PickupRequest).expectedCost || 0,
+                    dateTime: ride.dateTime,
+                    fromLocation: (ride as PickupRequest).startingLocation,
+                    toLocation: ride.destination,
+                    createdAt: serverTimestamp(),
+                };
+                
+                // Using setDoc with a specific composite ID ensures a user can only request once.
+                // The security rule will fail any subsequent attempts.
+                await setDoc(rideRef, resourceData);
+        
+                toast({
+                    title: "Success!",
+                    description: "Request sent! You'll be notified when the driver responds.",
+                });
             }
-    
-            toast({
-                title: "Success!",
-                description: ride.type === 'service' ? "Ride accepted! The user will be notified." : "Request sent! You'll be notified when the driver responds.",
-            });
         } catch (error) {
             console.error("Error creating ride:", error);
             const contextualError = new FirestorePermissionError({
               path: 'rides',
               operation: 'create',
-              requestResourceData: newRide
+              requestResourceData: resourceData
             });
             errorEmitter.emit('permission-error', contextualError);
         } finally {
             setIsSubmitting(false);
         }
     }
+    
+    const hasRequested = ride.type === 'pickup' && myRequestedPickupIds.has(ride.id);
+
+    const isButtonDisabled = isSubmitting || isRejecting || hasRequested;
+    const buttonText = isSubmitting 
+        ? "Submitting..." 
+        : (ride.type === 'pickup' 
+            ? (hasRequested ? 'Request Sent' : 'Send Request') 
+            : 'Accept');
+
 
     return (
         <Card className="flex flex-col">
@@ -339,8 +380,8 @@ function SuggestionCard({ ride }: { ride: CombinedRequest }) {
                 </div>
             </CardContent>
             <CardFooter className="flex gap-2">
-                <Button className="w-full" onClick={handleRequestOrAccept} disabled={isSubmitting || isRejecting}>
-                    {isSubmitting ? "Submitting..." : (ride.type === 'pickup' ? 'Send Request' : 'Accept')}
+                <Button className="w-full" onClick={handleRequestOrAccept} disabled={isButtonDisabled}>
+                    {buttonText}
                 </Button>
                 <Button variant="outline" className="w-full" onClick={handleReject} disabled={isSubmitting || isRejecting}>
                    {isRejecting ? "Rejecting..." : "Reject"}
