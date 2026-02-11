@@ -116,14 +116,8 @@ export default function Dashboard() {
     const latestActiveOffer = React.useMemo(() => {
         if (!myPickupRequests) return null;
         const active = myPickupRequests.filter(r => ['open', 'matched'].includes(r.status));
-        if (active.length > 0) {
-            return active.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
-        }
-        const terminal = myPickupRequests.filter(r => !['open', 'matched'].includes(r.status));
-        if(terminal.length > 0) {
-            return terminal.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
-        }
-        return null;
+        if (active.length === 0) return null;
+        return active.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
     }, [myPickupRequests]);
 
 
@@ -149,14 +143,8 @@ export default function Dashboard() {
     const latestRequestedRide = React.useMemo(() => {
         if (!myRequestedRides || myRequestedRides.length === 0) return null;
         const active = myRequestedRides.filter(r => ['requested', 'accepted', 'confirmed'].includes(r.status));
-        if (active.length > 0) {
-            return active.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
-        }
-        const terminal = myRequestedRides.filter(r => !['requested', 'accepted', 'confirmed'].includes(r.status));
-        if (terminal.length > 0) {
-            return terminal.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
-        }
-        return null;
+        if (active.length === 0) return null;
+        return active.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
     }, [myRequestedRides]);
 
 
@@ -831,3 +819,5 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
