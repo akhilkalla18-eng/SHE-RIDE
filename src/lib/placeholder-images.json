@@ -14,21 +14,21 @@
     },
     {
       "id": "avatar1",
-      "description": "Portrait of a smiling woman, representing a happy SheRide user.",
-      "imageUrl": "https://images.unsplash.com/flagged/photo-1559855603-ce4c8f480d76?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8d29tYW4lMjBzbWlsaW5nfGVufDB8fHx8MTc2OTA2OTg5OXww&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "woman smiling"
+      "description": "Portrait of a smiling Indian woman in a professional setting, representing a SheRide user.",
+      "imageUrl": "https://images.unsplash.com/photo-1618284594047-86b43b59c4c7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxzbWlsaW5nJTIwaW5kaWFuJTIwd29tYW58ZW58MHx8fHwxNzY5MjU5ODg5fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "indian woman smiling"
     },
     {
       "id": "avatar2",
-      "description": "Portrait of a confident woman in an urban setting, representing a SheRide commuter.",
-      "imageUrl": "https://images.unsplash.com/photo-1656613996478-9d61c702cdc8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHx3b21hbiUyMHVyYmFufGVufDB8fHx8MTc2OTEyNzQ0OXww&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "woman urban"
+      "description": "Portrait of a confident young woman in an urban Indian city, representing a SheRide commuter.",
+      "imageUrl": "https://images.unsplash.com/photo-161517306334-9f2639f75f78?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx5b3VuZyUyMGluZGlhbiUyMHdvbWFuJTIwdXJiYW58ZW58MHx8fHwxNzY5MjYwMDgyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "indian woman urban"
     },
     {
       "id": "avatar3",
-      "description": "Portrait of a woman enjoying her travel, representing a SheRide member.",
-      "imageUrl": "https://images.unsplash.com/photo-1532675432006-329c6fed7045?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3b21hbiUyMHRyYXZlbHxlbnwwfHx8fDE3NjkxNDMyNDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "woman travel"
+      "description": "A woman enjoying her travel in a modern Indian city, representing a happy SheRide member.",
+      "imageUrl": "https://images.unsplash.com/photo-1626543419084-9d554a938637?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHx3b21hbiUyMHRyYXZlbCUyMGluZGlhbiUyMGNpdHl8ZW58MHx8fHwxNzY5MjYwMjIxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman travel city"
     },
     {
       "id": "auth",
