@@ -94,15 +94,22 @@
         "pickupRequestId": { "type": "string", "description": "Reference to the PickupRequest, if the ride originated from one." },
         "serviceRequestId": { "type": "string", "description": "Reference to the ServiceRequest, if the ride originated from one." },
         "participantIds": { "type": "array", "items": { "type": "string" }, "description": "Array containing the UIDs of both the rider and the passenger." },
-        "status": { "type": "string", "enum": ["requested", "accepted", "confirmed", "completed", "cancelled", "cancelled_by_passenger", "cancelled_by_provider"], "description": "Status of the ride." },
+        "status": { "type": "string", "enum": ["requested", "confirmed", "start_pending", "in-progress", "completion_pending", "completed", "cancelled", "cancelled_by_passenger", "cancelled_by_provider"], "description": "Status of the ride." },
         "sharedCost": { "type": "number", "description": "The agreed shared cost between the rider and passenger." },
         "dateTime": { "type": "string", "description": "ISO string of the confirmed ride's date and time." },
         "createdAt": { "type": "any", "description": "Timestamp of when the ride was created."},
         "acceptedAt": { "type": "any", "description": "Timestamp of when the ride request was accepted by the driver." },
         "fromLocation": { "type": "string", "description": "The starting location of the ride."},
-        "toLocation": { "type": "string", "description": "The destination of the ride."}
+        "toLocation": { "type": "string", "description": "The destination of the ride."},
+        "rideOtp": { "type": "string", "description": "4-digit OTP for ride verification." },
+        "otpVerified": { "type": "boolean", "description": "Indicates if the OTP has been verified by the rider." },
+        "riderStartConfirmed": { "type": "boolean", "description": "Indicates if the rider has confirmed the ride start." },
+        "passengerStartConfirmed": { "type": "boolean", "description": "Indicates if the passenger has confirmed the ride start." },
+        "riderCompletionConfirmed": { "type": "boolean", "description": "Indicates if the rider has confirmed the ride completion." },
+        "passengerCompletionConfirmed": { "type": "boolean", "description": "Indicates if the passenger has confirmed the ride completion." },
+        "completedAt": { "type": "any", "description": "Timestamp of when the ride was completed." }
       },
-      "required": ["driverId", "passengerId", "participantIds", "status", "dateTime", "createdAt", "sharedCost", "fromLocation", "toLocation"]
+      "required": ["passengerId", "participantIds", "status", "dateTime", "createdAt", "sharedCost", "fromLocation", "toLocation"]
     },
     "Chat": {
       "title": "Chat",
@@ -158,7 +165,7 @@
         "userId": { "type": "string", "description": "UID of the user who will receive the notification." },
         "rideId": { "type": "string", "description": "ID of the related ride, if applicable." },
         "message": { "type": "string", "description": "The content of the notification message." },
-        "type": { "type": "string", "enum": ["ride_cancelled", "ride_accepted", "ride_requested", "new_message"], "description": "The type of notification." },
+        "type": { "type": "string", "enum": ["ride_cancelled", "ride_accepted", "ride_requested", "new_message", "ride_completed"], "description": "The type of notification." },
         "cancelledBy": { "type": "string", "enum": ["passenger", "provider"], "description": "Indicates who cancelled the ride." },
         "isRead": { "type": "boolean", "description": "True if the user has read the notification." },
         "createdAt": { "type": "any", "description": "Timestamp of when the notification was created." }

@@ -259,6 +259,7 @@ function SuggestionCard({ ride, myRequestedPickupIds }: { ride: CombinedRequest,
 
                 const rideRef = doc(firestore, 'rides', serviceRequest.rideId);
                 const serviceRequestRef = doc(firestore, 'serviceRequests', serviceRequest.id);
+                const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
                 const batch = writeBatch(firestore);
 
@@ -266,8 +267,14 @@ function SuggestionCard({ ride, myRequestedPickupIds }: { ride: CombinedRequest,
                 batch.update(rideRef, {
                     driverId: user.uid,
                     participantIds: arrayUnion(user.uid),
-                    status: 'accepted',
-                    acceptedAt: serverTimestamp()
+                    status: 'confirmed',
+                    acceptedAt: serverTimestamp(),
+                    rideOtp: otp,
+                    otpVerified: false,
+                    riderStartConfirmed: false,
+                    passengerStartConfirmed: false,
+                    riderCompletionConfirmed: false,
+                    passengerCompletionConfirmed: false,
                 });
 
                 // Update the ServiceRequest document
@@ -312,7 +319,7 @@ function SuggestionCard({ ride, myRequestedPickupIds }: { ride: CombinedRequest,
             const contextualError = new FirestorePermissionError({
               path: ride.type === 'service' ? `rides/${(ride as ServiceRequest).rideId}` : 'rides',
               operation: ride.type === 'service' ? 'update' : 'create',
-              requestResourceData: { status: 'accepted' } // simplified data for error
+              requestResourceData: { status: 'confirmed' } // simplified data for error
             });
             errorEmitter.emit('permission-error', contextualError);
         } finally {

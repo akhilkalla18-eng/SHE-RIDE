@@ -4,7 +4,7 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser } from '@/firebase';
-import { doc, updateDoc, addDoc, collection, serverTimestamp, writeBatch, query, where, getDocs, deleteField } from 'firebase/firestore';
+import { doc, updateDoc, collection, serverTimestamp, writeBatch, query, where, getDocs, deleteField } from 'firebase/firestore';
 import type { Ride, UserProfile, Notification, PickupRequest } from '@/lib/schemas';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { ArrowRight, Calendar, Coins, User as UserIcon, Bike, Clock, Loader2, Me
 import { useToast } from '@/hooks/use-toast';
 import { placeholderImages } from '@/lib/placeholder-images';
 import Link from 'next/link';
+import { Input } from '@/components/ui/input';
 
 const DetailSkeleton = () => (
     <div className="max-w-4xl mx-auto grid gap-6">
@@ -83,12 +84,19 @@ function RideDetailPage() {
         setIsUpdating(true);
     
         const batch = writeBatch(firestore);
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
     
         try {
             // 1. Update the accepted ride request
             batch.update(rideRef, {
-                status: 'accepted',
-                acceptedAt: serverTimestamp()
+                status: 'confirmed',
+                acceptedAt: serverTimestamp(),
+                rideOtp: otp,
+                otpVerified: false,
+                riderStartConfirmed: false,
+                passengerStartConfirmed: false,
+                riderCompletionConfirmed: false,
+                passengerCompletionConfirmed: false,
             });
     
             // This handles acceptances for service requests, which are simpler
@@ -102,7 +110,6 @@ function RideDetailPage() {
                 const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
                 batch.update(pickupRequestRef, { status: 'matched', matchedPassengerId: ride.passengerId });
                 
-                // Find and cancel other pending requests for the same offer
                 const otherRequestsQuery = query(
                     collection(firestore, "rides"),
                     where("pickupRequestId", "==", ride.pickupRequestId),
@@ -111,11 +118,10 @@ function RideDetailPage() {
                 const otherRequestsSnapshot = await getDocs(otherRequestsQuery);
                 const notificationsCollection = collection(firestore, "notifications");
                 
-                // Collect all passenger IDs that will be rejected to clear them from the main pickup request
                 const rejectedPassengerIds: string[] = [];
     
                 otherRequestsSnapshot.forEach(rideDoc => {
-                    if (rideDoc.id === ride.id) return; // Don't cancel the one we're accepting
+                    if (rideDoc.id === ride.id) return; 
     
                     const otherRideRef = doc(firestore, 'rides', rideDoc.id);
                     batch.update(otherRideRef, { status: 'cancelled_by_provider' });
@@ -124,7 +130,7 @@ function RideDetailPage() {
                     rejectedPassengerIds.push(rideData.passengerId);
 
                     const newNotification: Omit<Notification, 'id'> = {
-                        userId: rideData.passengerId, // Notify the passenger
+                        userId: rideData.passengerId, 
                         rideId: rideDoc.id,
                         message: `${driverProfile.name} has accepted another request for the ride you requested.`,
                         type: 'ride_cancelled',
@@ -136,8 +142,7 @@ function RideDetailPage() {
                     batch.set(newNotifRef, newNotification);
                 });
 
-                 // Add the rejected passenger IDs to the pickup request's `rejectedBy` field.
-                if (rejectedPassengerIds.length > 0) {
+                 if (rejectedPassengerIds.length > 0) {
                      batch.update(pickupRequestRef, { rejectedBy: rejectedPassengerIds });
                 }
             }
@@ -146,7 +151,7 @@ function RideDetailPage() {
             
             toast({
                 title: 'Ride Accepted!',
-                description: `The ride has been confirmed with the passenger.`
+                description: `The ride has been confirmed. Please verify with the OTP to start.`
             });
     
         } catch (error) {
@@ -166,26 +171,23 @@ function RideDetailPage() {
         try {
             const newStatus = isCurrentUserDriver ? 'cancelled_by_provider' : 'cancelled_by_passenger';
             
-            // 1. Update the ride status to cancelled
             batch.update(rideRef, { status: newStatus });
     
-            // 2. Set original request to cancelled
             if (ride.pickupRequestId) {
                 const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
                 batch.update(pickupRequestRef, { 
-                    status: 'cancelled',
+                    status: 'open',
                     matchedPassengerId: deleteField()
                 });
             }
             if (ride.serviceRequestId) {
                 const serviceRequestRef = doc(firestore, 'serviceRequests', ride.serviceRequestId);
                 batch.update(serviceRequestRef, {
-                    status: 'cancelled',
+                    status: 'open',
                     matchedDriverId: deleteField()
                 });
             }
             
-            // 3. Send notification to the other party
             const isCancellingPendingRequest = ride.status === 'requested' && isCurrentUserPassenger;
             if (!isCancellingPendingRequest) {
                 const otherUserId = isCurrentUserDriver ? ride.passengerId : ride.driverId;
@@ -204,7 +206,6 @@ function RideDetailPage() {
                 batch.set(newNotifRef, newNotification);
             }
     
-            // 4. Commit all changes
             await batch.commit();
     
             toast({
@@ -236,44 +237,16 @@ function RideDetailPage() {
     }
     
     const canAccept = ride.status === 'requested' && isCurrentUserDriver;
-    // A passenger can cancel their *request*. Any participant can cancel an *accepted/confirmed* ride.
-    const canCancel = (ride.status === 'requested' && isCurrentUserPassenger) || ['accepted', 'confirmed'].includes(ride.status);
+    const canCancel = (ride.status === 'requested' && isCurrentUserPassenger) || ['confirmed', 'start_pending', 'in-progress'].includes(ride.status);
     const cancelButtonText = ride.status === 'requested' && isCurrentUserPassenger ? 'Cancel Request' : 'Cancel Ride';
 
 
     const statusText = ride.status.replace(/_/g, ' ');
     let badgeVariant: "default" | "secondary" | "destructive" = "secondary";
-    if (['accepted', 'confirmed', 'completed'].includes(ride.status)) {
+    if (['confirmed', 'in-progress', 'completed'].includes(ride.status)) {
         badgeVariant = "default";
     } else if (ride.status.startsWith('cancelled')) {
         badgeVariant = "destructive";
-    }
-
-    const renderActionButtons = () => {
-        const canChat = ride.status === 'accepted' || ride.status === 'confirmed';
-
-        if (!canAccept && !canCancel && !canChat) return null;
-        if (ride.status.startsWith('cancelled') || ride.status === 'completed') return null;
-
-        return (
-             <CardFooter className="flex gap-2 justify-end">
-                {canChat && (
-                    <Button asChild variant="outline">
-                        <Link href={`/chat/${ride.id}`}>
-                            <MessageSquare className="mr-2 h-4 w-4" /> Chat
-                        </Link>
-                    </Button>
-                )}
-                {canCancel && <Button variant="destructive" onClick={handleCancel} disabled={isUpdating}>
-                    {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    {cancelButtonText}
-                </Button>}
-                {canAccept && <Button onClick={handleAcceptRequest} disabled={isUpdating}>
-                    {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    Accept Request
-                </Button>}
-            </CardFooter>
-        );
     }
 
     return (
@@ -309,7 +282,7 @@ function RideDetailPage() {
                                 <Avatar className="h-12 w-12"><AvatarImage src={(driverProfile as any)?.photoURL || placeholderImages.find(i=>i.id === 'avatar1')?.imageUrl}/><AvatarFallback>{driverProfile?.name?.charAt(0)}</AvatarFallback></Avatar>
                                 <div>
                                     <p className="text-xs text-muted-foreground">Provider</p>
-                                    <p className="font-semibold">{driverProfile?.name}</p>
+                                    <p className="font-semibold">{driverProfile?.name || 'Awaiting rider...'}</p>
                                 </div>
                             </CardHeader>
                         </Card>
@@ -323,11 +296,193 @@ function RideDetailPage() {
                             </CardHeader>
                         </Card>
                     </div>
+
+                    <RideLifecycleManager
+                        ride={ride}
+                        rideRef={rideRef!}
+                        isCurrentUserDriver={!!isCurrentUserDriver}
+                        isCurrentUserPassenger={!!isCurrentUserPassenger}
+                    />
+
                 </CardContent>
-                {renderActionButtons()}
+                <CardFooter className="flex flex-wrap gap-2 justify-end pt-4">
+                    {canCancel && <Button variant="destructive" onClick={handleCancel} disabled={isUpdating}>
+                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        {cancelButtonText}
+                    </Button>}
+                    {canAccept && <Button onClick={handleAcceptRequest} disabled={isUpdating}>
+                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Accept Request
+                    </Button>}
+                </CardFooter>
             </Card>
         </div>
     )
 }
+
+function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUserPassenger }: { ride: Ride, rideRef: any, isCurrentUserDriver: boolean, isCurrentUserPassenger: boolean }) {
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [otpInput, setOtpInput] = React.useState("");
+
+    const handleVerifyOtp = async () => {
+        if (otpInput !== ride.rideOtp) {
+            toast({ variant: 'destructive', title: 'Invalid OTP', description: 'The OTP you entered is incorrect.' });
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            await updateDoc(rideRef, {
+                otpVerified: true,
+                status: 'start_pending'
+            });
+            toast({ title: 'OTP Verified!', description: 'You can now start the ride.' });
+        } catch (e) {
+            console.error(e);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not verify OTP.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleStartRide = async () => {
+        setIsSubmitting(true);
+        try {
+            if (isCurrentUserDriver) {
+                await updateDoc(rideRef, { riderStartConfirmed: true });
+                toast({ title: 'You confirmed start.', description: 'Waiting for passenger to confirm.' });
+            } else if (isCurrentUserPassenger) {
+                await updateDoc(rideRef, { 
+                    passengerStartConfirmed: true,
+                    status: 'in-progress'
+                });
+                toast({ title: 'Ride Started!', description: 'Enjoy your journey.' });
+            }
+        } catch (e) {
+            console.error(e);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not confirm ride start.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    const handleCompleteRide = async () => {
+        setIsSubmitting(true);
+        const firestore = useFirestore();
+        try {
+            if (isCurrentUserDriver) {
+                await updateDoc(rideRef, { 
+                    riderCompletionConfirmed: true,
+                    status: 'completion_pending'
+                });
+                toast({ title: 'You confirmed completion.', description: 'Waiting for passenger to confirm.' });
+            } else if (isCurrentUserPassenger) {
+                const batch = writeBatch(firestore);
+                batch.update(rideRef, { 
+                    passengerCompletionConfirmed: true,
+                    status: 'completed',
+                    completedAt: serverTimestamp()
+                });
+                
+                // Add notifications
+                const notificationsCollection = collection(firestore, "notifications");
+                const riderNotifRef = doc(notificationsCollection);
+                const passengerNotifRef = doc(notificationsCollection);
+
+                const completionMessage = `Your ride from ${ride.fromLocation} to ${ride.toLocation} is complete.`;
+                
+                batch.set(riderNotifRef, {
+                    userId: ride.driverId,
+                    rideId: ride.id,
+                    message: completionMessage,
+                    type: 'ride_completed',
+                    isRead: false,
+                    createdAt: serverTimestamp()
+                });
+
+                 batch.set(passengerNotifRef, {
+                    userId: ride.passengerId,
+                    rideId: ride.id,
+                    message: completionMessage,
+                    type: 'ride_completed',
+                    isRead: false,
+                    createdAt: serverTimestamp()
+                });
+
+                await batch.commit();
+
+                toast({ title: 'Ride Completed!', description: 'Thank you for using SheRide.' });
+            }
+        } catch (e) {
+            console.error(e);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not confirm ride completion.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+
+    if (ride.status === 'confirmed') {
+        if (isCurrentUserPassenger) {
+            return (
+                <Card className="bg-primary/10 border-primary/20">
+                    <CardHeader>
+                        <CardTitle>Your Ride OTP</CardTitle>
+                        <CardDescription>Share this OTP with your rider to start the trip.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-4xl font-bold tracking-widest text-center text-primary bg-background/50 rounded-lg py-4">{ride.rideOtp}</p>
+                    </CardContent>
+                </Card>
+            );
+        }
+        if (isCurrentUserDriver) {
+            return (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Start Ride Verification</CardTitle>
+                        <CardDescription>Enter the OTP from the passenger to begin the ride.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex gap-2">
+                        <Input 
+                            placeholder="4-digit OTP"
+                            maxLength={4}
+                            value={otpInput}
+                            onChange={(e) => setOtpInput(e.target.value)}
+                            disabled={isSubmitting}
+                        />
+                        <Button onClick={handleVerifyOtp} disabled={isSubmitting || otpInput.length !== 4}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Verify OTP
+                        </Button>
+                    </CardContent>
+                </Card>
+            );
+        }
+    }
+    
+    if (ride.status === 'start_pending' || ride.status === 'in-progress') {
+        const canDriverStart = isCurrentUserDriver && !ride.riderStartConfirmed;
+        const canPassengerStart = isCurrentUserPassenger && ride.riderStartConfirmed && !ride.passengerStartConfirmed;
+        const canDriverComplete = isCurrentUserDriver && ride.status === 'in-progress' && !ride.riderCompletionConfirmed;
+        const canPassengerComplete = isCurrentUserPassenger && ride.status === 'completion_pending' && !ride.passengerCompletionConfirmed;
+        
+        return (
+            <div className="grid grid-cols-2 gap-4">
+                 <Button onClick={handleStartRide} disabled={isSubmitting || (isCurrentUserDriver ? !canDriverStart : !canPassengerStart)}>
+                     {isSubmitting && ride.status === 'start_pending' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                     {ride.riderStartConfirmed ? 'Passenger Start' : 'Rider Start'}
+                 </Button>
+                 <Button onClick={handleCompleteRide} disabled={isSubmitting || (isCurrentUserDriver ? !canDriverComplete : !canPassengerComplete)}>
+                     {isSubmitting && ride.status !== 'start_pending' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                     {ride.riderCompletionConfirmed ? 'Passenger Complete' : 'Rider Complete'}
+                 </Button>
+            </div>
+        )
+    }
+
+    return null; // No UI for other statuses
+}
+
 
 export default RideDetailPage;

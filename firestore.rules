@@ -4,237 +4,171 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // --- Helper Functions ---
+    function isParticipant(ride) {
+      return request.auth.uid in ride.participantIds;
+    }
+
+    function isDriver(ride) {
+      return request.auth.uid == ride.driverId;
+    }
+
+    function isPassenger(ride) {
+      return request.auth.uid == ride.passengerId;
+    }
+
     // --- Rules for User Profiles ---
     match /users/{userId} {
-      // CREATE: A new user can create their own profile document.
-      // The document ID must match their authentication UID.
-      // The `id` field inside the document must also match their UID.
-      allow create: if request.auth != null 
-                    && request.auth.uid == userId 
-                    && request.resource.data.id == request.auth.uid;
-      
-      // READ, UPDATE: A user can only read or update their own profile.
+      allow create: if request.auth != null && request.auth.uid == userId && request.resource.data.id == request.auth.uid;
       allow read, update: if request.auth != null && request.auth.uid == userId;
-
-      // DELETE: Deleting user profiles from the client is not allowed.
       allow delete: if false;
     }
 
     // --- Rules for Ride Offers ---
     match /pickupRequests/{pickupRequestId} {
-      // GET: Any authenticated user can get a single ride offer.
-      allow get: if request.auth != null;
-
-      // LIST: Any authenticated user can list ride offers.
-      allow list: if request.auth != null;
-
-      // CREATE: An authenticated user can create a ride offer for themselves.
+      allow get, list: if request.auth != null;
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
-
-      // UPDATE: Permissions for updating a pickup request.
       allow update: if request.auth != null && (
-                      // Case 1: The owner of the request can make any changes.
-                      // This covers creating, editing, cancelling, and accepting a request (moving to 'matched').
-                      resource.data.userProfileId == request.auth.uid ||
-                      
-                      // Case 2: The matched passenger can cancel, which reverts the request back to 'open'.
-                      (
-                        resource.data.status == 'matched' && 
-                        resource.data.matchedPassengerId == request.auth.uid &&
-                        request.resource.data.status == 'open'
-                      ) ||
-                      
-                      // Case 3: Any authenticated user can add themselves to the 'rejectedBy' list.
-                      (
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rejectedBy']) &&
-                        request.auth.uid in request.resource.data.rejectedBy
-                      )
-                    );
-      
-      // DELETE: A user can only delete their OWN ride offers.
+        resource.data.userProfileId == request.auth.uid ||
+        (resource.data.status == 'matched' && resource.data.matchedPassengerId == request.auth.uid && request.resource.data.status == 'open') ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rejectedBy']) && request.auth.uid in request.resource.data.rejectedBy)
+      );
       allow delete: if request.auth != null && resource.data.userProfileId == request.auth.uid;
     }
 
     // --- Rules for Ride Requests ---
     match /serviceRequests/{serviceRequestId} {
-      // GET: Any authenticated user can get a single ride request.
-      allow get: if request.auth != null;
-
-      // LIST: Any authenticated user can list ride requests.
-      allow list: if request.auth != null;
-
-      // CREATE: An authenticated user can create a ride request for themselves.
+      allow get, list: if request.auth != null;
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
-      
-      // UPDATE: Permissions for updating a service request.
       allow update: if request.auth != null && (
-                      // Case 1: The owner of the request can make changes.
-                      resource.data.userProfileId == request.auth.uid ||
-                      
-                      // Case 2: The matched driver can cancel, which reverts the request back to 'open'.
-                      (
-                        resource.data.status == 'matched' &&
-                        resource.data.matchedDriverId == request.auth.uid &&
-                        request.resource.data.status == 'open'
-                      ) ||
-
-                      // Case 3: Any authenticated user can add themselves to the 'rejectedBy' list.
-                      (
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rejectedBy']) &&
-                        request.auth.uid in request.resource.data.rejectedBy
-                      )
-                    );
-
-      // DELETE: A user can only delete their OWN ride requests.
+        resource.data.userProfileId == request.auth.uid ||
+        (resource.data.status == 'matched' && resource.data.matchedDriverId == request.auth.uid && request.resource.data.status == 'open') ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rejectedBy']) && request.auth.uid in request.resource.data.rejectedBy)
+      );
       allow delete: if request.auth != null && resource.data.userProfileId == request.auth.uid;
     }
 
     // --- Rules for Confirmed Rides ---
     match /rides/{rideId} {
-      // Helper functions for create rule
-      function isParticipant() {
-        return request.auth.uid in request.resource.data.participantIds;
-      }
-      function isRequestingPassenger() {
-        return request.resource.data.passengerId == request.auth.uid;
-      }
-      function isAcceptingDriver() {
-        return request.resource.data.driverId == request.auth.uid;
-      }
-
-      // GET, DELETE: Only participants in the ride can access or delete a ride document.
-      allow get, delete: if request.auth != null && request.auth.uid in resource.data.participantIds;
-      
-      // LIST: A user can query for rides only if they are filtering by their own UID in the 'participantIds' array.
+      allow get, delete: if request.auth != null && isParticipant(resource.data);
       allow list: if request.auth != null && request.query.where.participantIds.hasAny([request.auth.uid]);
 
-      // CREATE: A ride can be created by a participant.
-      allow create: if request.auth != null && isParticipant() && (
-        // Case 1: Passenger requests a spot on a driver's PICKUP offer
+      allow create: if request.auth != null && isParticipant(request.resource.data);
+
+      allow update: if request.auth != null && isParticipant(resource.data) && (
+        // Cancellation Logic (any participant can cancel an active ride)
         (
-          request.resource.data.pickupRequestId != null &&
-          isRequestingPassenger() &&
-          rideId == request.resource.data.pickupRequestId + '_' + request.resource.data.passengerId
+          (
+            request.resource.data.status == 'cancelled_by_passenger' ||
+            request.resource.data.status == 'cancelled_by_provider'
+          ) &&
+          (resource.data.status == 'confirmed' || resource.data.status == 'start_pending' || resource.data.status == 'in-progress') &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         ) ||
-        // Case 2: Passenger creates a SERVICE request, which also creates a 'requested' ride
+        // Passenger cancels their own pending request
         (
-          request.resource.data.serviceRequestId != null &&
-          isRequestingPassenger() &&
-          request.resource.data.driverId == ""
+          request.resource.data.status == 'cancelled_by_passenger' &&
+          resource.data.status == 'requested' &&
+          isPassenger(resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        ) ||
+        // Driver accepts a pickup request, moves to 'confirmed', adds OTP
+        (
+          isDriver(resource.data) &&
+          resource.data.status == 'requested' &&
+          request.resource.data.status == 'confirmed' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'acceptedAt', 'rideOtp', 'otpVerified', 'riderStartConfirmed', 'passengerStartConfirmed', 'riderCompletionConfirmed', 'passengerCompletionConfirmed'])
+        ) ||
+        // Driver accepts a service request (this is a special case as driver isn't a participant yet)
+        (
+          resource.data.status == 'requested' &&
+          request.resource.data.status == 'confirmed' &&
+          request.resource.data.driverId == request.auth.uid &&
+          !isParticipant(resource.data) && // Driver is becoming a participant
+          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'driverId', 'participantIds', 'acceptedAt', 'rideOtp', 'otpVerified', 'riderStartConfirmed', 'passengerStartConfirmed', 'riderCompletionConfirmed', 'passengerCompletionConfirmed'])
+        ) ||
+        // Driver verifies OTP, moves to 'start_pending'
+        (
+          isDriver(resource.data) &&
+          resource.data.status == 'confirmed' &&
+          request.resource.data.status == 'start_pending' &&
+          request.resource.data.otpVerified == true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'otpVerified'])
+        ) ||
+        // Driver confirms start
+        (
+          isDriver(resource.data) &&
+          resource.data.status == 'start_pending' &&
+          request.resource.data.riderStartConfirmed == true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['riderStartConfirmed'])
+        ) ||
+        // Passenger confirms start, moves to 'in-progress'
+        (
+          isPassenger(resource.data) &&
+          resource.data.status == 'start_pending' &&
+          resource.data.riderStartConfirmed == true &&
+          request.resource.data.passengerStartConfirmed == true &&
+          request.resource.data.status == 'in-progress' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'passengerStartConfirmed'])
+        ) ||
+        // Driver confirms completion, moves to 'completion_pending'
+        (
+          isDriver(resource.data) &&
+          resource.data.status == 'in-progress' &&
+          request.resource.data.riderCompletionConfirmed == true &&
+          request.resource.data.status == 'completion_pending' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'riderCompletionConfirmed'])
+        ) ||
+        // Passenger confirms completion, moves to 'completed'
+        (
+          isPassenger(resource.data) &&
+          resource.data.status == 'completion_pending' &&
+          resource.data.riderCompletionConfirmed == true &&
+          request.resource.data.passengerCompletionConfirmed == true &&
+          request.resource.data.status == 'completed' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'passengerCompletionConfirmed', 'completedAt'])
         )
       );
 
-      // UPDATE: Permissions for updating a ride document.
-      allow update: if request.auth != null && (
-          // Condition A: A driver is accepting a passenger's service request.
-          (
-              resource.data.status == 'requested' &&
-              resource.data.serviceRequestId != null &&
-              request.resource.data.status == 'accepted' &&
-              request.resource.data.driverId == request.auth.uid && // The user making the request is the new driver
-              ! (request.auth.uid in resource.data.participantIds) && // Driver is not yet a participant
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'driverId', 'participantIds', 'acceptedAt'])
-          ) ||
-          // Condition B: An existing participant is updating the ride.
-          (
-              request.auth.uid in resource.data.participantIds && (
-                  // B.1: Driver accepts a pickup request
-                  (
-                    request.resource.data.status == 'accepted' &&
-                    resource.data.status == 'requested' &&
-                    resource.data.driverId == request.auth.uid &&
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt'])
-                  ) ||
-                  // B.2: Passenger cancels their own pending request
-                  (
-                    request.resource.data.status == 'cancelled_by_passenger' &&
-                    resource.data.status == 'requested' &&
-                    resource.data.passengerId == request.auth.uid &&
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-                  ) ||
-                  // B.3: Driver auto-cancels other pending requests during batch update
-                  (
-                    request.resource.data.status == 'cancelled_by_provider' &&
-                    resource.data.status == 'requested' &&
-                    resource.data.driverId == request.auth.uid &&
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-                  ) ||
-                   // B.4: Either participant cancels an already accepted/confirmed ride
-                  (
-                    (
-                      request.resource.data.status == 'cancelled_by_passenger' ||
-                      request.resource.data.status == 'cancelled_by_provider'
-                    ) &&
-                    (resource.data.status == 'accepted' || resource.data.status == 'confirmed') &&
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-                  )
-              )
-          )
-      );
-
-        // --- Rules for Ride Chat Messages ---
-        match /messages/{messageId} {
-          // Helper function to check if user is a participant of the parent ride.
-          function isRideParticipant() {
-            return request.auth.uid in get(/databases/$(database)/documents/rides/$(rideId)).data.participantIds;
-          }
-          
-          // READ, LIST: Only participants can read messages.
-          allow list, get: if request.auth != null && isRideParticipant();
-          
-          // CREATE: A user can create a message if they are a participant and the message is from them,
-          // and the ride is active.
-          allow create: if request.auth != null && isRideParticipant() 
-                        && request.resource.data.senderId == request.auth.uid
-                        && (get(/databases/$(database)/documents/rides/$(rideId)).data.status == 'accepted' 
-                            || get(/databases/$(database)/documents/rides/$(rideId)).data.status == 'confirmed');
-          
-          // UPDATE, DELETE: Not allowed from the client.
-          allow update, delete: if false;
+      // --- Rules for Ride Chat Messages ---
+      match /messages/{messageId} {
+        function isRideParticipant() {
+          return request.auth.uid in get(/databases/$(database)/documents/rides/$(rideId)).data.participantIds;
         }
+        
+        allow list, get: if request.auth != null && isRideParticipant();
+        
+        allow create: if request.auth != null && isRideParticipant() 
+                      && request.resource.data.senderId == request.auth.uid
+                      && (get(/databases/$(database)/documents/rides/$(rideId)).data.status == 'confirmed' ||
+                          get(/databases/$(database)/documents/rides/$(rideId)).data.status == 'start_pending' ||
+                          get(/databases/$(database)/documents/rides/$(rideId)).data.status == 'in-progress'
+                         );
+        
+        allow update, delete: if false;
+      }
     }
 
     // --- Rules for Chats ---
     match /chats/{chatId} {
-      // GET, UPDATE: Only participants can read or update a chat document.
       allow get, update: if request.auth != null && request.auth.uid in resource.data.participantIds;
-      
-      // LIST: A user can query for chats only if they are filtering by their own UID.
       allow list: if request.auth != null && request.query.where.participantIds.hasAny([request.auth.uid]);
-      
-      // CREATE: A chat can be created if the user is one of the participants.
       allow create: if request.auth != null && request.auth.uid in request.resource.data.participantIds;
-      
-      // DELETE: Chats cannot be deleted from the client.
       allow delete: if false;
     }
 
     // --- Rules for SOS Alerts ---
     match /sos_alerts/{sosAlertId} {
-      // CREATE: An authenticated user can create an alert for themselves.
       allow create: if request.auth != null && request.resource.data.userProfileId == request.auth.uid;
-      
-      // READ, UPDATE, DELETE: These operations are not allowed from the client for security.
       allow read, update, delete: if false;
     }
 
     // --- Rules for Notifications ---
     match /notifications/{notificationId} {
-      // GET: A user can read a single notification document if their UID matches the document's 'userId' field.
       allow get: if request.auth != null && resource.data.userId == request.auth.uid;
-
-      // LIST: A user can query the notifications collection ONLY if the query includes a 'where' clause
-      // that filters for their own 'userId'.
       allow list: if request.auth != null && request.query.where.userId == request.auth.uid;
-
-      // UPDATE: A user can update their own notification (e.g., marking it as read).
       allow update: if request.auth != null && resource.data.userId == request.auth.uid;
-
-      // CREATE: The backend logic (via batch writes initiated by a client) can create notifications.
-      // We trust the client-side logic that triggers this to be correct.
       allow create: if request.auth != null;
-
-      // DELETE: A user can delete their own notification documents.
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }

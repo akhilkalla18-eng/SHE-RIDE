@@ -166,7 +166,7 @@ export interface Ride {
   /**
    * Status of the ride.
    */
-  status: "requested" | "accepted" | "confirmed" | "completed" | "cancelled" | "cancelled_by_passenger" | "cancelled_by_provider";
+  status: "requested" | "confirmed" | "start_pending" | "in-progress" | "completion_pending" | "completed" | "cancelled" | "cancelled_by_passenger" | "cancelled_by_provider";
   /**
    * The agreed shared cost between the rider and passenger.
    */
@@ -191,6 +191,34 @@ export interface Ride {
    * The destination of the ride.
    */
   toLocation: string;
+  /**
+   * 4-digit OTP for ride verification.
+   */
+  rideOtp?: string;
+  /**
+   * Indicates if the OTP has been verified by the rider.
+   */
+  otpVerified?: boolean;
+  /**
+   * Indicates if the rider has confirmed the ride start.
+   */
+  riderStartConfirmed?: boolean;
+  /**
+   * Indicates if the passenger has confirmed the ride start.
+   */
+  passengerStartConfirmed?: boolean;
+  /**
+   * Indicates if the rider has confirmed the ride completion.
+   */
+  riderCompletionConfirmed?: boolean;
+  /**
+   * Indicates if the passenger has confirmed the ride completion.
+   */
+  passengerCompletionConfirmed?: boolean;
+  /**
+   * Timestamp of when the ride was completed.
+   */
+  completedAt?: any;
 }
 export interface Chat {
   /**
@@ -266,7 +294,7 @@ export interface Notification {
   /**
    * The type of notification.
    */
-  type: "ride_cancelled" | "ride_accepted" | "ride_requested" | "new_message";
+  type: "ride_cancelled" | "ride_accepted" | "ride_requested" | "new_message" | "ride_completed";
   /**
    * Indicates who cancelled the ride.
    */
