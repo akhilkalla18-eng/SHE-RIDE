@@ -271,10 +271,10 @@ function SuggestionCard({ ride, myRequestedPickupIds }: { ride: CombinedRequest,
                     acceptedAt: serverTimestamp(),
                     rideOtp: otp,
                     otpVerified: false,
-                    riderStartConfirmed: false,
-                    passengerStartConfirmed: false,
-                    riderCompletionConfirmed: false,
-                    passengerCompletionConfirmed: false,
+                    riderStarted: false,
+                    passengerStarted: false,
+                    riderCompleted: false,
+                    passengerCompleted: false,
                 });
 
                 // Update the ServiceRequest document

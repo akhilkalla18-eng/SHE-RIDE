@@ -166,7 +166,7 @@ export interface Ride {
   /**
    * Status of the ride.
    */
-  status: "requested" | "confirmed" | "start_pending" | "in-progress" | "completion_pending" | "completed" | "cancelled" | "cancelled_by_passenger" | "cancelled_by_provider";
+  status: "requested" | "confirmed" | "in-progress" | "completed" | "cancelled";
   /**
    * The agreed shared cost between the rider and passenger.
    */
@@ -202,23 +202,31 @@ export interface Ride {
   /**
    * Indicates if the rider has confirmed the ride start.
    */
-  riderStartConfirmed?: boolean;
+  riderStarted?: boolean;
   /**
    * Indicates if the passenger has confirmed the ride start.
    */
-  passengerStartConfirmed?: boolean;
+  passengerStarted?: boolean;
   /**
    * Indicates if the rider has confirmed the ride completion.
    */
-  riderCompletionConfirmed?: boolean;
+  riderCompleted?: boolean;
   /**
    * Indicates if the passenger has confirmed the ride completion.
    */
-  passengerCompletionConfirmed?: boolean;
+  passengerCompleted?: boolean;
   /**
    * Timestamp of when the ride was completed.
    */
   completedAt?: any;
+  /**
+   * UID of the user who cancelled the ride.
+   */
+  cancelledBy?: string;
+  /**
+   * Timestamp of when the ride was cancelled.
+   */
+  cancelledAt?: any;
 }
 export interface Chat {
   /**

@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useFirestore, useDoc, useUser } from '@/firebase';
 import { doc, updateDoc, collection, serverTimestamp, writeBatch, query, where, getDocs, deleteField } from 'firebase/firestore';
 import type { Ride, UserProfile, Notification, PickupRequest } from '@/lib/schemas';
@@ -52,6 +52,7 @@ const DetailSkeleton = () => (
 
 function RideDetailPage() {
     const { rideId } = useParams();
+    const router = useRouter();
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
@@ -93,10 +94,10 @@ function RideDetailPage() {
                 acceptedAt: serverTimestamp(),
                 rideOtp: otp,
                 otpVerified: false,
-                riderStartConfirmed: false,
-                passengerStartConfirmed: false,
-                riderCompletionConfirmed: false,
-                passengerCompletionConfirmed: false,
+                riderStarted: false,
+                passengerStarted: false,
+                riderCompleted: false,
+                passengerCompleted: false,
             });
     
             // This handles acceptances for service requests, which are simpler
@@ -124,7 +125,7 @@ function RideDetailPage() {
                     if (rideDoc.id === ride.id) return; 
     
                     const otherRideRef = doc(firestore, 'rides', rideDoc.id);
-                    batch.update(otherRideRef, { status: 'cancelled_by_provider' });
+                    batch.update(otherRideRef, { status: 'cancelled' });
                     
                     const rideData = rideDoc.data() as Ride;
                     rejectedPassengerIds.push(rideData.passengerId);
@@ -169,9 +170,13 @@ function RideDetailPage() {
         const batch = writeBatch(firestore);
     
         try {
-            const newStatus = isCurrentUserDriver ? 'cancelled_by_provider' : 'cancelled_by_passenger';
+            const newStatus = 'cancelled';
             
-            batch.update(rideRef, { status: newStatus });
+            batch.update(rideRef, { 
+                status: newStatus,
+                cancelledBy: user.uid,
+                cancelledAt: serverTimestamp(),
+            });
     
             if (ride.pickupRequestId) {
                 const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
@@ -212,6 +217,7 @@ function RideDetailPage() {
                 title: 'Ride Canceled',
                 description: 'The ride has been successfully canceled.'
             });
+            router.push('/dashboard');
     
         } catch (error) {
             console.error("Failed to cancel ride", error);
@@ -237,13 +243,13 @@ function RideDetailPage() {
     }
     
     const canAccept = ride.status === 'requested' && isCurrentUserDriver;
-    const canCancel = (ride.status === 'requested' && isCurrentUserPassenger) || ['confirmed', 'start_pending', 'in-progress'].includes(ride.status);
+    const canCancel = (ride.status === 'requested' && isCurrentUserPassenger) || ['confirmed', 'in-progress'].includes(ride.status);
     const cancelButtonText = ride.status === 'requested' && isCurrentUserPassenger ? 'Cancel Request' : 'Cancel Ride';
 
 
     const statusText = ride.status.replace(/_/g, ' ');
     let badgeVariant: "default" | "secondary" | "destructive" = "secondary";
-    if (['confirmed', 'in-progress', 'completed', 'start_pending', 'completion_pending'].includes(ride.status)) {
+    if (['confirmed', 'in-progress', 'completed'].includes(ride.status)) {
         badgeVariant = "default";
     } else if (ride.status.startsWith('cancelled')) {
         badgeVariant = "destructive";
@@ -335,7 +341,6 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
         try {
             await updateDoc(rideRef, {
                 otpVerified: true,
-                status: 'start_pending'
             });
             toast({ title: 'OTP Verified!', description: 'You can now start the ride.' });
         } catch (e) {
@@ -350,11 +355,11 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
         setIsSubmitting(true);
         try {
             if (isCurrentUserDriver) {
-                await updateDoc(rideRef, { riderStartConfirmed: true });
+                await updateDoc(rideRef, { riderStarted: true });
                 toast({ title: 'You confirmed start.', description: 'Waiting for passenger to confirm.' });
-            } else if (isCurrentUserPassenger && ride.riderStartConfirmed) {
+            } else if (isCurrentUserPassenger && ride.riderStarted) {
                 await updateDoc(rideRef, { 
-                    passengerStartConfirmed: true,
+                    passengerStarted: true,
                     status: 'in-progress'
                 });
                 toast({ title: 'Ride Started!', description: 'Enjoy your journey.' });
@@ -372,14 +377,13 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
         try {
             if (isCurrentUserDriver) {
                 await updateDoc(rideRef, { 
-                    riderCompletionConfirmed: true,
-                    status: 'completion_pending'
+                    riderCompleted: true,
                 });
                 toast({ title: 'You confirmed completion.', description: 'Waiting for passenger to confirm.' });
-            } else if (isCurrentUserPassenger && ride.riderCompletionConfirmed) {
+            } else if (isCurrentUserPassenger && ride.riderCompleted) {
                 const batch = writeBatch(firestore);
                 batch.update(rideRef, { 
-                    passengerCompletionConfirmed: true,
+                    passengerCompleted: true,
                     status: 'completed',
                     completedAt: serverTimestamp()
                 });
@@ -422,7 +426,7 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
     };
 
 
-    if (ride.status === 'confirmed') {
+    if (ride.status === 'confirmed' && !ride.otpVerified) {
         if (isCurrentUserPassenger) {
             return (
                 <Card className="bg-primary/10 border-primary/20">
@@ -461,9 +465,9 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
         }
     }
     
-    if (ride.status === 'start_pending') {
-        const canDriverStart = isCurrentUserDriver && !ride.riderStartConfirmed;
-        const canPassengerStart = isCurrentUserPassenger && ride.riderStartConfirmed && !ride.passengerStartConfirmed;
+    if (ride.status === 'confirmed' && ride.otpVerified) {
+        const canDriverStart = isCurrentUserDriver && !ride.riderStarted;
+        const canPassengerStart = isCurrentUserPassenger && ride.riderStarted && !ride.passengerStarted;
         
         return (
             <Card>
@@ -475,14 +479,14 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
                      <div className="flex justify-around items-center text-sm">
                         <div className="flex flex-col items-center gap-2">
                             <span className="font-semibold">Rider Start</span>
-                            {ride.riderStartConfirmed ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
+                            {ride.riderStarted ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
                         </div>
                          <div className="flex flex-col items-center gap-2">
                             <span className="font-semibold">Passenger Start</span>
-                            {ride.passengerStartConfirmed ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
+                            {ride.passengerStarted ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
                         </div>
                     </div>
-                     <Button onClick={handleStartRide} disabled={isSubmitting || (isCurrentUserDriver ? !canDriverStart : !canPassengerStart)} className="w-full">
+                     <Button onClick={handleStartRide} disabled={isSubmitting || (!canDriverStart && !canPassengerStart)} className="w-full">
                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                          Confirm Start
                      </Button>
@@ -491,9 +495,9 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
         )
     }
 
-     if (ride.status === 'in-progress' || ride.status === 'completion_pending') {
-        const canDriverComplete = isCurrentUserDriver && !ride.riderCompletionConfirmed;
-        const canPassengerComplete = isCurrentUserPassenger && ride.riderCompletionConfirmed && !ride.passengerCompletionConfirmed;
+     if (ride.status === 'in-progress') {
+        const canDriverComplete = isCurrentUserDriver && !ride.riderCompleted;
+        const canPassengerComplete = isCurrentUserPassenger && ride.riderCompleted && !ride.passengerCompleted;
         
         return (
             <Card>
@@ -505,14 +509,14 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
                      <div className="flex justify-around items-center text-sm">
                         <div className="flex flex-col items-center gap-2">
                             <span className="font-semibold">Rider Complete</span>
-                            {ride.riderCompletionConfirmed ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
+                            {ride.riderCompleted ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
                         </div>
                          <div className="flex flex-col items-center gap-2">
                             <span className="font-semibold">Passenger Complete</span>
-                            {ride.passengerCompletionConfirmed ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
+                            {ride.passengerCompleted ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
                         </div>
                     </div>
-                     <Button onClick={handleCompleteRide} disabled={isSubmitting || (isCurrentUserDriver ? !canDriverComplete : !canPassengerComplete)} className="w-full">
+                     <Button onClick={handleCompleteRide} disabled={isSubmitting || (!canDriverComplete && !canPassengerComplete)} className="w-full">
                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                          Confirm Completion
                      </Button>
@@ -532,7 +536,7 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
         );
     }
     
-    if (['cancelled', 'cancelled_by_passenger', 'cancelled_by_provider'].includes(ride.status)) {
+    if (ride.status === 'cancelled') {
          return (
             <Card className="bg-destructive/10 border-destructive/20">
                 <CardHeader>
