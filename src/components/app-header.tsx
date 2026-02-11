@@ -164,7 +164,35 @@ export function AppHeader() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-80">
-          <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+          <div className="flex justify-between items-center pr-2">
+            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+             {notifications && notifications.length > 0 && (
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                       <Button variant="link" size="sm" className="text-xs text-muted-foreground h-auto p-0" disabled={isClearing}>
+                         {isClearing ? "Clearing..." : "Clear All"}
+                       </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Clear All Notifications?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete all your notifications.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction 
+                                onClick={handleClearAllNotifications}
+                                className={buttonVariants({ variant: "destructive" })}
+                            >
+                                Confirm
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
+          </div>
           <DropdownMenuSeparator />
           {areNotificationsLoading ? (
             <DropdownMenuItem>Loading...</DropdownMenuItem>
@@ -181,34 +209,6 @@ export function AppHeader() {
                         </div>
                     </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="p-1 focus:bg-transparent">
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                           <Button variant="outline" size="sm" className="w-full" disabled={isClearing}>
-                             {isClearing && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                             Clear All
-                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Clear All Notifications?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete all your notifications.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction 
-                                    onClick={handleClearAllNotifications}
-                                    className={buttonVariants({ variant: "destructive" })}
-                                >
-                                    Confirm
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </DropdownMenuItem>
              </>
           ) : (
             <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
