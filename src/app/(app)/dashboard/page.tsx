@@ -511,7 +511,7 @@ function OfferedRideView({ ride }: { ride: Ride }) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
                 <div className="font-medium truncate pr-2">{ride.fromLocation}</div>
                 <ArrowUpRight className="h-4 w-4 text-primary flex-shrink-0 mx-2"/>
-                <div className="font-medium truncate pl-2 text-right">{toLocation}</div>
+                <div className="font-medium truncate pl-2 text-right">{ride.toLocation}</div>
             </div>
             
             <RideProgressBar ride={ride} />
