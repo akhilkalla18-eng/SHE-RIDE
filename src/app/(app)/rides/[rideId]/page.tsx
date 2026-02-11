@@ -11,9 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Calendar, Coins, User as UserIcon, Bike, Clock, Loader2 } from 'lucide-react';
+import { ArrowRight, Calendar, Coins, User as UserIcon, Bike, Clock, Loader2, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { placeholderImages } from '@/lib/placeholder-images';
+import Link from 'next/link';
 
 const DetailSkeleton = () => (
     <div className="max-w-4xl mx-auto grid gap-6">
@@ -39,7 +40,8 @@ const DetailSkeleton = () => (
                     <Skeleton className="h-24 w-full" />
                 </div>
             </CardContent>
-            <CardFooter className="flex justify-end">
+            <CardFooter className="flex justify-end gap-2">
+                <Skeleton className="h-10 w-28" />
                 <Skeleton className="h-10 w-28" />
             </CardFooter>
         </Card>
@@ -248,11 +250,20 @@ function RideDetailPage() {
     }
 
     const renderActionButtons = () => {
-        if (!canAccept && !canCancel) return null;
+        const canChat = ride.status === 'accepted' || ride.status === 'confirmed';
+
+        if (!canAccept && !canCancel && !canChat) return null;
         if (ride.status.startsWith('cancelled') || ride.status === 'completed') return null;
 
         return (
              <CardFooter className="flex gap-2 justify-end">
+                {canChat && (
+                    <Button asChild variant="outline">
+                        <Link href={`/chat/${ride.id}`}>
+                            <MessageSquare className="mr-2 h-4 w-4" /> Chat
+                        </Link>
+                    </Button>
+                )}
                 {canCancel && <Button variant="destructive" onClick={handleCancel} disabled={isUpdating}>
                     {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     {cancelButtonText}

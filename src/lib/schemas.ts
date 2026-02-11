@@ -210,6 +210,20 @@ export interface Chat {
    */
   lastMessageAt: any;
 }
+export interface ChatMessage {
+  /**
+   * UID of the user who sent the message.
+   */
+  senderId: string;
+  /**
+   * The content of the message.
+   */
+  text: string;
+  /**
+   * Timestamp when the message was sent.
+   */
+  createdAt: any;
+}
 export interface SosAlert {
   /**
    * Unique identifier for the SOS alert.

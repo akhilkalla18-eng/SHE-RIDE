@@ -171,6 +171,27 @@ service cloud.firestore {
               )
           )
       );
+
+        // --- Rules for Ride Chat Messages ---
+        match /messages/{messageId} {
+          // Helper function to check if user is a participant of the parent ride.
+          function isRideParticipant() {
+            return request.auth.uid in get(/databases/$(database)/documents/rides/$(rideId)).data.participantIds;
+          }
+          
+          // READ, LIST: Only participants can read messages.
+          allow list, get: if request.auth != null && isRideParticipant();
+          
+          // CREATE: A user can create a message if they are a participant and the message is from them,
+          // and the ride is active.
+          allow create: if request.auth != null && isRideParticipant() 
+                        && request.resource.data.senderId == request.auth.uid
+                        && (get(/databases/$(database)/documents/rides/$(rideId)).data.status == 'accepted' 
+                            || get(/databases/$(database)/documents/rides/$(rideId)).data.status == 'confirmed');
+          
+          // UPDATE, DELETE: Not allowed from the client.
+          allow update, delete: if false;
+        }
     }
 
     // --- Rules for Chats ---

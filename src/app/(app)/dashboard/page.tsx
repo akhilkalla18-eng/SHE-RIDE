@@ -587,8 +587,10 @@ function OfferedRideView({ offer, ride }: { offer: PickupRequest | null, ride: R
                                     </div>
                                 </div>
                             ) : <p className="text-sm">Passenger details loading...</p>}
-                            <Button variant="outline" size="sm">
-                                <MessageSquare className="mr-2 h-4 w-4" /> Chat
+                            <Button asChild variant="outline" size="sm">
+                                <Link href={`/chat/${ride.id}`}>
+                                    <MessageSquare className="mr-2 h-4 w-4" /> Chat
+                                </Link>
                             </Button>
                         </div>
                     </CardHeader>
@@ -732,8 +734,10 @@ function RequestedRideView({ ride }: { ride: Ride }) {
                                 </div>
                             ) : <p className="text-sm">Driver details loading...</p>}
                             {step === 'confirmed' && (
-                                 <Button variant="outline" size="sm">
-                                    <MessageSquare className="mr-2 h-4 w-4" /> Chat
+                                 <Button asChild variant="outline" size="sm">
+                                    <Link href={`/chat/${ride.id}`}>
+                                        <MessageSquare className="mr-2 h-4 w-4" /> Chat
+                                    </Link>
                                 </Button>
                             )}
                         </div>
