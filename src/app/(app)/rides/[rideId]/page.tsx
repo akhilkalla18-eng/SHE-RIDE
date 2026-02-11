@@ -243,7 +243,7 @@ function RideDetailPage() {
 
     const statusText = ride.status.replace(/_/g, ' ');
     let badgeVariant: "default" | "secondary" | "destructive" = "secondary";
-    if (['confirmed', 'in-progress', 'completed'].includes(ride.status)) {
+    if (['confirmed', 'in-progress', 'completed', 'start_pending', 'completion_pending'].includes(ride.status)) {
         badgeVariant = "default";
     } else if (ride.status.startsWith('cancelled')) {
         badgeVariant = "destructive";
@@ -322,6 +322,7 @@ function RideDetailPage() {
 
 function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUserPassenger }: { ride: Ride, rideRef: any, isCurrentUserDriver: boolean, isCurrentUserPassenger: boolean }) {
     const { toast } = useToast();
+    const firestore = useFirestore();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [otpInput, setOtpInput] = React.useState("");
 
@@ -351,7 +352,7 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
             if (isCurrentUserDriver) {
                 await updateDoc(rideRef, { riderStartConfirmed: true });
                 toast({ title: 'You confirmed start.', description: 'Waiting for passenger to confirm.' });
-            } else if (isCurrentUserPassenger) {
+            } else if (isCurrentUserPassenger && ride.riderStartConfirmed) {
                 await updateDoc(rideRef, { 
                     passengerStartConfirmed: true,
                     status: 'in-progress'
@@ -368,7 +369,6 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
     
     const handleCompleteRide = async () => {
         setIsSubmitting(true);
-        const firestore = useFirestore();
         try {
             if (isCurrentUserDriver) {
                 await updateDoc(rideRef, { 
@@ -376,7 +376,7 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
                     status: 'completion_pending'
                 });
                 toast({ title: 'You confirmed completion.', description: 'Waiting for passenger to confirm.' });
-            } else if (isCurrentUserPassenger) {
+            } else if (isCurrentUserPassenger && ride.riderCompletionConfirmed) {
                 const batch = writeBatch(firestore);
                 batch.update(rideRef, { 
                     passengerCompletionConfirmed: true,
@@ -461,27 +461,90 @@ function RideLifecycleManager({ ride, rideRef, isCurrentUserDriver, isCurrentUse
         }
     }
     
-    if (ride.status === 'start_pending' || ride.status === 'in-progress') {
+    if (ride.status === 'start_pending') {
         const canDriverStart = isCurrentUserDriver && !ride.riderStartConfirmed;
         const canPassengerStart = isCurrentUserPassenger && ride.riderStartConfirmed && !ride.passengerStartConfirmed;
-        const canDriverComplete = isCurrentUserDriver && ride.status === 'in-progress' && !ride.riderCompletionConfirmed;
-        const canPassengerComplete = isCurrentUserPassenger && ride.status === 'completion_pending' && !ride.passengerCompletionConfirmed;
         
         return (
-            <div className="grid grid-cols-2 gap-4">
-                 <Button onClick={handleStartRide} disabled={isSubmitting || (isCurrentUserDriver ? !canDriverStart : !canPassengerStart)}>
-                     {isSubmitting && ride.status === 'start_pending' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                     {ride.riderStartConfirmed ? 'Passenger Start' : 'Rider Start'}
-                 </Button>
-                 <Button onClick={handleCompleteRide} disabled={isSubmitting || (isCurrentUserDriver ? !canDriverComplete : !canPassengerComplete)}>
-                     {isSubmitting && ride.status !== 'start_pending' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                     {ride.riderCompletionConfirmed ? 'Passenger Complete' : 'Rider Complete'}
-                 </Button>
-            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Ready to Go?</CardTitle>
+                    <CardDescription>Both rider and passenger must confirm to start the ride.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="flex justify-around items-center text-sm">
+                        <div className="flex flex-col items-center gap-2">
+                            <span className="font-semibold">Rider Start</span>
+                            {ride.riderStartConfirmed ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
+                        </div>
+                         <div className="flex flex-col items-center gap-2">
+                            <span className="font-semibold">Passenger Start</span>
+                            {ride.passengerStartConfirmed ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
+                        </div>
+                    </div>
+                     <Button onClick={handleStartRide} disabled={isSubmitting || (isCurrentUserDriver ? !canDriverStart : !canPassengerStart)} className="w-full">
+                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                         Confirm Start
+                     </Button>
+                </CardContent>
+            </Card>
         )
     }
 
-    return null; // No UI for other statuses
+     if (ride.status === 'in-progress' || ride.status === 'completion_pending') {
+        const canDriverComplete = isCurrentUserDriver && !ride.riderCompletionConfirmed;
+        const canPassengerComplete = isCurrentUserPassenger && ride.riderCompletionConfirmed && !ride.passengerCompletionConfirmed;
+        
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Complete the Ride?</CardTitle>
+                    <CardDescription>Both rider and passenger must confirm ride completion.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="flex justify-around items-center text-sm">
+                        <div className="flex flex-col items-center gap-2">
+                            <span className="font-semibold">Rider Complete</span>
+                            {ride.riderCompletionConfirmed ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
+                        </div>
+                         <div className="flex flex-col items-center gap-2">
+                            <span className="font-semibold">Passenger Complete</span>
+                            {ride.passengerCompletionConfirmed ? <Badge variant="default">Confirmed</Badge> : <Badge variant="outline">Pending</Badge>}
+                        </div>
+                    </div>
+                     <Button onClick={handleCompleteRide} disabled={isSubmitting || (isCurrentUserDriver ? !canDriverComplete : !canPassengerComplete)} className="w-full">
+                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                         Confirm Completion
+                     </Button>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if (ride.status === 'completed') {
+        return (
+            <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                <CardHeader>
+                    <CardTitle className="text-green-800 dark:text-green-200">Ride Completed!</CardTitle>
+                    <CardDescription className="text-green-700 dark:text-green-300">This journey is complete. Thank you for using SheRide.</CardDescription>
+                </CardHeader>
+            </Card>
+        );
+    }
+    
+    if (['cancelled', 'cancelled_by_passenger', 'cancelled_by_provider'].includes(ride.status)) {
+         return (
+            <Card className="bg-destructive/10 border-destructive/20">
+                <CardHeader>
+                    <CardTitle className="text-destructive">Ride Canceled</CardTitle>
+                    <CardDescription className="text-destructive/80">This ride has been canceled.</CardDescription>
+                </CardHeader>
+            </Card>
+        );
+    }
+
+
+    return null;
 }
 
 

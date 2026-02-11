@@ -55,79 +55,79 @@ service cloud.firestore {
 
       allow create: if request.auth != null && isParticipant(request.resource.data);
 
-      allow update: if request.auth != null && isParticipant(resource.data) && (
-        // Cancellation Logic (any participant can cancel an active ride)
-        (
+      allow update: if request.auth != null && (
+          // A participant is updating the document
+          (isParticipant(resource.data) && (
+              // Cancellation Logic
+              (
+                (request.resource.data.status == 'cancelled_by_passenger' || request.resource.data.status == 'cancelled_by_provider') &&
+                (resource.data.status == 'confirmed' || resource.data.status == 'start_pending' || resource.data.status == 'in-progress') &&
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+              ) ||
+              // Passenger cancels their own pending request
+              (
+                request.resource.data.status == 'cancelled_by_passenger' &&
+                resource.data.status == 'requested' &&
+                isPassenger(resource.data) &&
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+              ) ||
+              // Driver accepts a pickup request, moves to 'confirmed', adds OTP
+              (
+                isDriver(resource.data) &&
+                resource.data.status == 'requested' &&
+                request.resource.data.status == 'confirmed' &&
+                request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'acceptedAt', 'rideOtp', 'otpVerified', 'riderStartConfirmed', 'passengerStartConfirmed', 'riderCompletionConfirmed', 'passengerCompletionConfirmed'])
+              ) ||
+              // Driver verifies OTP, moves to 'start_pending'
+              (
+                isDriver(resource.data) &&
+                resource.data.status == 'confirmed' &&
+                request.resource.data.status == 'start_pending' &&
+                request.resource.data.otpVerified == true &&
+                request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'otpVerified'])
+              ) ||
+              // Driver confirms start
+              (
+                isDriver(resource.data) &&
+                resource.data.status == 'start_pending' &&
+                request.resource.data.riderStartConfirmed == true &&
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['riderStartConfirmed'])
+              ) ||
+              // Passenger confirms start, moves to 'in-progress'
+              (
+                isPassenger(resource.data) &&
+                resource.data.status == 'start_pending' &&
+                resource.data.riderStartConfirmed == true &&
+                request.resource.data.passengerStartConfirmed == true &&
+                request.resource.data.status == 'in-progress' &&
+                request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'passengerStartConfirmed'])
+              ) ||
+              // Driver confirms completion, moves to 'completion_pending'
+              (
+                isDriver(resource.data) &&
+                resource.data.status == 'in-progress' &&
+                request.resource.data.riderCompletionConfirmed == true &&
+                request.resource.data.status == 'completion_pending' &&
+                request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'riderCompletionConfirmed'])
+              ) ||
+              // Passenger confirms completion, moves to 'completed'
+              (
+                isPassenger(resource.data) &&
+                resource.data.status == 'completion_pending' &&
+                resource.data.riderCompletionConfirmed == true &&
+                request.resource.data.passengerCompletionConfirmed == true &&
+                request.resource.data.status == 'completed' &&
+                request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'passengerCompletionConfirmed', 'completedAt'])
+              )
+          )) ||
+          // A driver is accepting a service request, becoming a participant
           (
-            request.resource.data.status == 'cancelled_by_passenger' ||
-            request.resource.data.status == 'cancelled_by_provider'
-          ) &&
-          (resource.data.status == 'confirmed' || resource.data.status == 'start_pending' || resource.data.status == 'in-progress') &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        ) ||
-        // Passenger cancels their own pending request
-        (
-          request.resource.data.status == 'cancelled_by_passenger' &&
-          resource.data.status == 'requested' &&
-          isPassenger(resource.data) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        ) ||
-        // Driver accepts a pickup request, moves to 'confirmed', adds OTP
-        (
-          isDriver(resource.data) &&
-          resource.data.status == 'requested' &&
-          request.resource.data.status == 'confirmed' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'acceptedAt', 'rideOtp', 'otpVerified', 'riderStartConfirmed', 'passengerStartConfirmed', 'riderCompletionConfirmed', 'passengerCompletionConfirmed'])
-        ) ||
-        // Driver accepts a service request (this is a special case as driver isn't a participant yet)
-        (
-          resource.data.status == 'requested' &&
-          request.resource.data.status == 'confirmed' &&
-          request.resource.data.driverId == request.auth.uid &&
-          !isParticipant(resource.data) && // Driver is becoming a participant
-          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'driverId', 'participantIds', 'acceptedAt', 'rideOtp', 'otpVerified', 'riderStartConfirmed', 'passengerStartConfirmed', 'riderCompletionConfirmed', 'passengerCompletionConfirmed'])
-        ) ||
-        // Driver verifies OTP, moves to 'start_pending'
-        (
-          isDriver(resource.data) &&
-          resource.data.status == 'confirmed' &&
-          request.resource.data.status == 'start_pending' &&
-          request.resource.data.otpVerified == true &&
-          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'otpVerified'])
-        ) ||
-        // Driver confirms start
-        (
-          isDriver(resource.data) &&
-          resource.data.status == 'start_pending' &&
-          request.resource.data.riderStartConfirmed == true &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['riderStartConfirmed'])
-        ) ||
-        // Passenger confirms start, moves to 'in-progress'
-        (
-          isPassenger(resource.data) &&
-          resource.data.status == 'start_pending' &&
-          resource.data.riderStartConfirmed == true &&
-          request.resource.data.passengerStartConfirmed == true &&
-          request.resource.data.status == 'in-progress' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'passengerStartConfirmed'])
-        ) ||
-        // Driver confirms completion, moves to 'completion_pending'
-        (
-          isDriver(resource.data) &&
-          resource.data.status == 'in-progress' &&
-          request.resource.data.riderCompletionConfirmed == true &&
-          request.resource.data.status == 'completion_pending' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'riderCompletionConfirmed'])
-        ) ||
-        // Passenger confirms completion, moves to 'completed'
-        (
-          isPassenger(resource.data) &&
-          resource.data.status == 'completion_pending' &&
-          resource.data.riderCompletionConfirmed == true &&
-          request.resource.data.passengerCompletionConfirmed == true &&
-          request.resource.data.status == 'completed' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'passengerCompletionConfirmed', 'completedAt'])
-        )
+              !isParticipant(resource.data) && // Driver is NOT yet a participant
+              resource.data.status == 'requested' &&
+              request.resource.data.status == 'confirmed' &&
+              request.resource.data.driverId == request.auth.uid &&
+              request.resource.data.diff(resource.data).affectedKeys().hasAll(['status', 'driverId', 'participantIds', 'acceptedAt', 'rideOtp', 'otpVerified', 'riderStartConfirmed', 'passengerStartConfirmed', 'riderCompletionConfirmed', 'passengerCompletionConfirmed'])
+          )
       );
 
       // --- Rules for Ride Chat Messages ---
