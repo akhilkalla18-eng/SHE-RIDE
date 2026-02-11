@@ -122,19 +122,20 @@ export default function Dashboard() {
         return myPickupRequests.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
     }, [myPickupRequests]);
 
+    const myDrivingRidesQuery = React.useMemo(() => {
+        if (!user || !firestore) return null;
+        return query(
+            collection(firestore, "rides"),
+            where("driverId", "==", user.uid),
+            where("status", "in", ["accepted", "confirmed"])
+        );
+    }, [firestore, user]);
+    const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myDrivingRidesQuery);
 
-    const associatedRidesQuery = React.useMemo(() => {
-        if (!firestore || !latestActiveOffer || !user?.uid) return null;
-        return query(collection(firestore, "rides"), where("pickupRequestId", "==", latestActiveOffer.id), where("driverId", "==", user.uid));
-    }, [firestore, latestActiveOffer, user?.uid]);
-    const { data: associatedRides, isLoading: areAssociatedRidesLoading } = useCollection<Ride>(associatedRidesQuery);
-
-    const definitiveRideForOffer = React.useMemo(() => {
-        if (!associatedRides || associatedRides.length === 0) return null;
-        const activeRide = associatedRides.find(r => ['accepted', 'confirmed', 'completed'].includes(r.status));
-        if (activeRide) return activeRide;
-        return associatedRides[0];
-    }, [associatedRides]);
+    const latestDrivingRide = React.useMemo(() => {
+        if (!myDrivingRides || myDrivingRides.length === 0) return null;
+        return myDrivingRides.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+    }, [myDrivingRides]);
 
     const myRequestedRidesQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
@@ -151,6 +152,8 @@ export default function Dashboard() {
         return myRequestedRides.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
     }, [myRequestedRides]);
 
+    const definitiveOfferedRide = latestDrivingRide;
+    const definitiveOffer = latestDrivingRide ? null : latestActiveOffer;
 
     const upcomingRides = React.useMemo(() => {
         const allUpcoming = rides?.filter(r => r.status === 'confirmed' || r.status === 'accepted' || r.status === 'requested') || [];
@@ -184,7 +187,7 @@ export default function Dashboard() {
         ]);
     }, []);
 
-    const isLoading = isUserLoading || isProfileLoading || areMyPickupsLoading || areAssociatedRidesLoading || areMyRequestsLoading;
+    const isLoading = isUserLoading || isProfileLoading || areMyPickupsLoading || areMyDrivingRidesLoading || areMyRequestsLoading;
 
   return (
     <div className="flex flex-col gap-4 md:gap-8">
@@ -259,8 +262,8 @@ export default function Dashboard() {
         </div>
         <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
             <MyRideStatusCard 
-                offeredRideOffer={latestActiveOffer}
-                offeredRide={definitiveRideForOffer}
+                offeredRideOffer={definitiveOffer}
+                offeredRide={definitiveOfferedRide}
                 requestedRide={latestRequestedRide}
                 isLoading={isLoading}
             />
@@ -369,7 +372,9 @@ function MyRideStatusCard({
         );
     }
 
-    if (!offeredRideOffer && !requestedRide) {
+    const hasOfferedItem = !!offeredRideOffer || !!offeredRide;
+
+    if (!hasOfferedItem && !requestedRide) {
         return (
             <Card className="flex flex-col items-center justify-center min-h-[300px] md:min-h-full">
                 <CardHeader className="text-center">
@@ -391,7 +396,7 @@ function MyRideStatusCard({
         );
     }
 
-    const defaultTab = offeredRideOffer ? 'offered' : 'requested';
+    const defaultTab = hasOfferedItem ? 'offered' : 'requested';
 
     return (
         <Card>
@@ -402,11 +407,11 @@ function MyRideStatusCard({
             <CardContent>
                 <Tabs defaultValue={defaultTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="offered" disabled={!offeredRideOffer}>Rides Offered</TabsTrigger>
+                        <TabsTrigger value="offered" disabled={!hasOfferedItem}>Rides Offered</TabsTrigger>
                         <TabsTrigger value="requested" disabled={!requestedRide}>Rides Requested</TabsTrigger>
                     </TabsList>
                     <TabsContent value="offered" className="mt-4">
-                        {offeredRideOffer ? (
+                        {hasOfferedItem ? (
                             <OfferedRideView offer={offeredRideOffer} ride={offeredRide} />
                         ) : (
                             <div className="py-8 text-center">
@@ -437,11 +442,23 @@ function MyRideStatusCard({
     );
 }
 
-function OfferedRideView({ offer, ride }: { offer: PickupRequest, ride: Ride | null }) {
+function OfferedRideView({ offer, ride }: { offer: PickupRequest | null, ride: Ride | null }) {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
     const [isCancelling, setIsCancelling] = React.useState(false);
+
+    if (!offer && !ride) {
+        return (
+             <div className="py-8 text-center">
+                 <EmptyState
+                    title="No Rides Offered"
+                    description="You haven't offered any rides yet."
+                    icon={CircleDot}
+                />
+            </div>
+        )
+    }
 
     const passengerProfileRef = React.useMemo(() => {
         if (!firestore || !ride?.passengerId) return null;
@@ -452,16 +469,21 @@ function OfferedRideView({ offer, ride }: { offer: PickupRequest, ride: Ride | n
     let step: 'pending' | 'confirmed' | 'completed' | 'cancelled' | null = null;
     let statusText = "No Active Ride";
     
-    if (offer) {
-        if (offer.status === 'cancelled') {
-            step = 'cancelled';
-            statusText = 'Ride Cancelled';
-        } else if (ride && ride.status === 'completed') {
+    if (ride) {
+        if (ride.status === 'completed') {
             step = 'completed';
             statusText = 'Ride Completed';
-        } else if (offer.status === 'matched' && ride && (ride.status === 'accepted' || ride.status === 'confirmed')) {
+        } else if (ride.status === 'accepted' || ride.status === 'confirmed') {
             step = 'confirmed';
             statusText = 'Ride Confirmed';
+        } else if (ride.status.startsWith('cancelled')) {
+            step = 'cancelled';
+            statusText = 'Ride Cancelled'
+        }
+    } else if (offer) {
+         if (offer.status === 'cancelled') {
+            step = 'cancelled';
+            statusText = 'Ride Cancelled';
         } else if (offer.status === 'open') {
             step = 'pending';
             statusText = 'Ride Pending';
@@ -469,6 +491,11 @@ function OfferedRideView({ offer, ride }: { offer: PickupRequest, ride: Ride | n
     }
     
     const rideDetails = ride || offer;
+
+    const fromLocation = ride ? ride.fromLocation : offer!.startingLocation;
+    const toLocation = ride ? ride.toLocation : offer!.destination;
+    const cost = ride ? ride.sharedCost : offer!.expectedCost;
+
 
     const handleCancelOffer = async () => {
         if (!offer || !firestore || !user) return;
@@ -519,7 +546,7 @@ function OfferedRideView({ offer, ride }: { offer: PickupRequest, ride: Ride | n
         }
     }
     
-    const canCancelOffer = step === 'pending';
+    const canCancelOffer = step === 'pending' && !!offer;
 
     return (
         <div className="space-y-4">
@@ -527,7 +554,7 @@ function OfferedRideView({ offer, ride }: { offer: PickupRequest, ride: Ride | n
                 <div className="text-xs text-muted-foreground p-2">
                     <span>{new Date(rideDetails.dateTime).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                     {' - '}
-                    <span>₹{rideDetails.sharedCost || rideDetails.expectedCost}</span>
+                    <span>₹{cost}</span>
                 </div>
                 <Badge variant={
                     step === 'completed' ? 'default' : 
@@ -537,14 +564,14 @@ function OfferedRideView({ offer, ride }: { offer: PickupRequest, ride: Ride | n
                 } className={cn(step==='pending' && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
-                <div className="font-medium truncate pr-2">{rideDetails.fromLocation || rideDetails.startingLocation}</div>
+                <div className="font-medium truncate pr-2">{fromLocation}</div>
                 <ArrowUpRight className="h-4 w-4 text-primary flex-shrink-0 mx-2"/>
-                <div className="font-medium truncate pl-2 text-right">{rideDetails.toLocation || rideDetails.destination}</div>
+                <div className="font-medium truncate pl-2 text-right">{toLocation}</div>
             </div>
             
             <RideProgressBar currentStep={step} />
             
-            {step === 'confirmed' && (
+            {step === 'confirmed' && ride && (
                 <Card className="bg-muted/50">
                     <CardHeader className="p-4">
                         <div className="flex items-center justify-between">
@@ -823,5 +850,7 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
 
     
