@@ -34,139 +34,27 @@ export interface UserProfile {
    */
   emergencyContact?: string;
 }
-export interface PickupRequest {
-  /**
-   * Unique identifier for the pickup request.
-   */
-  id: string;
-  /**
-   * UID of the user creating the request.
-   */
-  userProfileId: string;
-  /**
-   * Starting location of the ride.
-   */
-  startingLocation: string;
-  /**
-   * Destination of the ride.
-   */
-  destination: string;
-  /**
-   * ISO string of the ride's date and time.
-   */
-  dateTime: string;
-  /**
-   * Type of vehicle (Bike / Scooty).
-   */
-  vehicleType: "Bike" | "Scooty";
-  /**
-   * Number of seats available (default 1).
-   */
-  seatsAvailable: number;
-  /**
-   * Expected cost of the ride (optional).
-   */
-  expectedCost?: number;
-  /**
-   * Rider's preferred route.
-   */
-  routePreference?: string;
-  /**
-   * The current status of the request (e.g., 'open', 'matched', 'cancelled').
-   */
-  status: "open" | "matched" | "cancelled";
-  /**
-   * Timestamp of when the request was created.
-   */
-  createdAt: any;
-  /**
-   * List of user IDs who have rejected this request.
-   */
-  rejectedBy?: string[];
-  /**
-   * The UID of the passenger who has been matched with this ride offer.
-   */
-  matchedPassengerId?: string;
-}
-export interface ServiceRequest {
-  /**
-   * Unique identifier for the service request.
-   */
-  id: string;
-  /**
-   * UID of the user creating the request.
-   */
-  userProfileId: string;
-  /**
-   * Pickup location for the service.
-   */
-  pickupLocation: string;
-  /**
-   * Destination for the service.
-   */
-  destination: string;
-  /**
-   * ISO string of the service's date and time.
-   */
-  dateTime: string;
-  /**
-   * Maximum amount the passenger is willing to pay.
-   */
-  maxAmountWillingToPay: number;
-  /**
-   * Passenger's preferred route.
-   */
-  preferredRoute?: string;
-  /**
-   * The current status of the request (e.g., 'open', 'matched', 'cancelled').
-   */
-  status: "open" | "matched" | "cancelled";
-  /**
-   * Timestamp of when the request was created.
-   */
-  createdAt: any;
-  /**
-   * Reference to the associated ride document.
-   */
-  rideId?: string;
-  /**
-   * List of user IDs who have rejected this request.
-   */
-  rejectedBy?: string[];
-  /**
-   * The UID of the driver who has been matched with this service request.
-   */
-  matchedDriverId?: string;
-}
 export interface Ride {
   /**
    * Unique identifier for the ride.
    */
   id: string;
   /**
-   * UID of the user who is driving.
+   * UID of the user who is driving. Null if it's a passenger's open request.
    */
   driverId: string;
   /**
-   * UID of the user who is the passenger.
+   * UID of the user who is the passenger. Null if it's a driver's open offer.
    */
   passengerId: string;
   /**
-   * Reference to the PickupRequest, if the ride originated from one.
-   */
-  pickupRequestId?: string;
-  /**
-   * Reference to the ServiceRequest, if the ride originated from one.
-   */
-  serviceRequestId?: string;
-  /**
-   * Array containing the UIDs of both the rider and the passenger.
+   * Array containing the UIDs of the rider and/or the passenger.
    */
   participantIds: string[];
   /**
    * Status of the ride.
    */
-  status: "requested" | "confirmed" | "in-progress" | "completed" | "cancelled";
+  status: "offering" | "requested" | "confirmed" | "in-progress" | "completed" | "cancelled";
   /**
    * The agreed shared cost between the rider and passenger.
    */
@@ -191,6 +79,10 @@ export interface Ride {
    * The destination of the ride.
    */
   toLocation: string;
+  /**
+   * Type of vehicle (Bike / Scooty).
+   */
+  vehicleType?: "Bike" | "Scooty";
   /**
    * 4-digit OTP for ride verification.
    */
@@ -227,24 +119,6 @@ export interface Ride {
    * Timestamp of when the ride was cancelled.
    */
   cancelledAt?: any;
-}
-export interface Chat {
-  /**
-   * Unique identifier for the chat.
-   */
-  id: string;
-  /**
-   * Array containing the UIDs of all participants.
-   */
-  participantIds: string[];
-  /**
-   * Array of message objects in the chat.
-   */
-  messages?: any[];
-  /**
-   * Timestamp of the last message sent.
-   */
-  lastMessageAt: any;
 }
 export interface ChatMessage {
   /**

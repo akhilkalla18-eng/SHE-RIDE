@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
-import { collection, serverTimestamp, doc, writeBatch } from "firebase/firestore";
-import type { ServiceRequest, Ride } from "@/lib/schemas";
+import { collection, serverTimestamp, addDoc } from "firebase/firestore";
+import type { Ride } from "@/lib/schemas";
 import { Loader2 } from "lucide-react";
 
 export default function CreateServicePage() {
@@ -41,54 +41,36 @@ export default function CreateServicePage() {
         const destination = formData.get("destination") as string;
         const maxAmount = Number(formData.get("max-amount")) || 0;
 
-        const serviceRequestsCollection = collection(firestore, "serviceRequests");
-        const serviceRequestRef = doc(serviceRequestsCollection);
-
-        const ridesCollection = collection(firestore, "rides");
-        const rideRef = doc(ridesCollection);
-
-        const newServiceRequestData: Omit<ServiceRequest, "id"> = {
-            userProfileId: user.uid,
-            pickupLocation: pickupLocation,
-            destination: destination,
-            dateTime: rideDateTime,
-            maxAmountWillingToPay: maxAmount,
-            preferredRoute: formData.get("route") as string || '',
-            status: 'open',
-            createdAt: serverTimestamp(),
-            rideId: rideRef.id,
-        };
-
-        const newRideData: Omit<Ride, "id"> = {
-            driverId: "", // No driver yet
+        const newRideRequest: Omit<Ride, "id" | "driverId"> = {
             passengerId: user.uid,
             participantIds: [user.uid],
-            serviceRequestId: serviceRequestRef.id,
             status: 'requested',
-            sharedCost: maxAmount,
-            dateTime: rideDateTime,
             fromLocation: pickupLocation,
             toLocation: destination,
+            dateTime: rideDateTime,
+            sharedCost: maxAmount,
             createdAt: serverTimestamp(),
+            // Set default values for lifecycle fields
+            otpVerified: false,
+            riderStarted: false,
+            passengerStarted: false,
+            riderCompleted: false,
+            passengerCompleted: false,
         };
 
         try {
-            const batch = writeBatch(firestore);
-            batch.set(serviceRequestRef, newServiceRequestData);
-            batch.set(rideRef, newRideData);
-            await batch.commit();
-
+            await addDoc(collection(firestore, "rides"), newRideRequest);
             toast({
-                title: "Service Request Created",
+                title: "Ride Request Created",
                 description: "Your ride request has been posted and is now visible in your dashboard.",
             });
             router.push("/dashboard");
         } catch (error) {
-            console.error("Error creating service request and ride:", error);
+            console.error("Error creating ride request:", error);
              const contextualError = new FirestorePermissionError({
-              path: `rides`, // Check ride creation rules first
+              path: `rides`,
               operation: 'create',
-              requestResourceData: newRideData
+              requestResourceData: newRideRequest
             });
             errorEmitter.emit('permission-error', contextualError);
         } finally {
@@ -129,13 +111,9 @@ export default function CreateServicePage() {
                             <Label htmlFor="max-amount">Max Amount Willing to Pay</Label>
                             <Input name="max-amount" id="max-amount" type="number" placeholder="e.g., 75" required />
                         </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="route">Preferred Route (Optional)</Label>
-                            <Input name="route" id="route" placeholder="e.g., Not via Sea Link" />
-                        </div>
                         <Button type="submit" className="w-full md:w-auto md:ml-auto" disabled={isSubmitting || isUserLoading}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isSubmitting ? "Posting..." : "Post Service Request"}
+                            {isSubmitting ? "Posting..." : "Post Ride Request"}
                         </Button>
                     </form>
                 </CardContent>

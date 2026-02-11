@@ -1,3 +1,4 @@
+
 "use client"
 
 import React from "react";
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import type { PickupRequest } from "@/lib/schemas";
+import type { Ride } from "@/lib/schemas";
 import { Loader2 } from "lucide-react";
 
 
@@ -37,36 +38,39 @@ export default function CreatePickupPage() {
         const date = formData.get("date") as string;
         const time = formData.get("time") as string;
 
-        const newRequest: Omit<PickupRequest, "id"> = {
-            userProfileId: user.uid,
-            startingLocation: formData.get("start-location") as string,
-            destination: formData.get("destination") as string,
+        const newRideOffer: Omit<Ride, "id" | "passengerId"> = {
+            driverId: user.uid,
+            participantIds: [user.uid],
+            status: 'offering',
+            fromLocation: formData.get("start-location") as string,
+            toLocation: formData.get("destination") as string,
             dateTime: new Date(`${date}T${time}`).toISOString(),
             vehicleType: formData.get("vehicle-type") as 'Bike' | 'Scooty',
-            seatsAvailable: 1,
-            expectedCost: Number(formData.get("cost")) || 0,
-            routePreference: formData.get("route") as string || '',
-            status: 'open',
+            sharedCost: Number(formData.get("cost")) || 0,
             createdAt: serverTimestamp(),
+            // Set default values for lifecycle fields
+            otpVerified: false,
+            riderStarted: false,
+            passengerStarted: false,
+            riderCompleted: false,
+            passengerCompleted: false,
         };
 
         try {
-            await addDoc(collection(firestore, "pickupRequests"), newRequest);
+            await addDoc(collection(firestore, "rides"), newRideOffer);
             toast({
-                title: "Pickup Request Created",
+                title: "Ride Offer Created",
                 description: "Your ride offer has been posted. We'll notify you about matching requests.",
             });
             router.push("/dashboard");
         } catch (error) {
-            console.error("Error creating pickup request:", error);
+            console.error("Error creating ride offer:", error);
             const contextualError = new FirestorePermissionError({
-              path: 'pickupRequests',
+              path: 'rides',
               operation: 'create',
-              requestResourceData: newRequest
+              requestResourceData: newRideOffer
             });
             errorEmitter.emit('permission-error', contextualError);
-            // A toast is not required here because the FirebaseErrorListener
-            // will catch the emitted error and display a detailed overlay.
         } finally {
             setIsSubmitting(false);
         }
@@ -115,21 +119,13 @@ export default function CreatePickupPage() {
                                 </Select>
                             </div>
                              <div className="grid gap-2">
-                                <Label htmlFor="seats">Seats Available</Label>
-                                <Input id="seats" type="number" defaultValue={1} disabled />
+                                <Label htmlFor="cost">Expected Contribution (Optional)</Label>
+                                <Input name="cost" id="cost" type="number" placeholder="e.g., 50 for fuel" />
                             </div>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="cost">Expected Contribution (Optional)</Label>
-                            <Input name="cost" id="cost" type="number" placeholder="e.g., 50 for fuel" />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="route">Route Preference (Optional)</Label>
-                            <Input name="route" id="route" placeholder="e.g., Via Western Express Highway" />
                         </div>
                         <Button type="submit" className="w-full md:w-auto md:ml-auto" disabled={isSubmitting || isUserLoading}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isSubmitting ? "Posting..." : "Create Pickup Request"}
+                            {isSubmitting ? "Posting..." : "Create Ride Offer"}
                         </Button>
                     </form>
                 </CardContent>
