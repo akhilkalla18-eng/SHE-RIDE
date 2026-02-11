@@ -4,7 +4,7 @@
 import React from 'react';
 import { useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser } from '@/firebase';
-import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, writeBatch, query, where, getDocs } from 'firebase/firestore';
 import type { Ride, UserProfile, Notification } from '@/lib/schemas';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -74,34 +74,77 @@ function RideDetailPage() {
     const { data: passengerProfile, isLoading: isPassengerLoading } = useDoc<UserProfile>(passengerRef);
     
     const isCurrentUserDriver = user?.uid === ride?.driverId;
+    const isCurrentUserPassenger = user?.uid === ride?.passengerId;
 
-    const handleUpdateStatus = async (newStatus: 'accepted') => {
-        if (!rideRef || !firestore || !ride) return;
+    const handleAcceptRequest = async () => {
+        if (!rideRef || !firestore || !ride || !driverProfile || !user || !isCurrentUserDriver || ride.status !== 'requested') return;
         setIsUpdating(true);
+    
+        const batch = writeBatch(firestore);
+    
         try {
-            await updateDoc(rideRef, { 
-                status: newStatus,
+            // 1. Update the accepted ride request
+            batch.update(rideRef, {
+                status: 'accepted',
                 acceptedAt: serverTimestamp()
             });
-
-            // If this ride came from a pickup request, mark that request as 'matched'
+    
+            // This handles acceptances for service requests, which are simpler
+            if (ride.serviceRequestId) {
+                const serviceRequestRef = doc(firestore, 'serviceRequests', ride.serviceRequestId);
+                batch.update(serviceRequestRef, { status: 'matched' });
+            }
+            
+            // This handles the more complex case of accepting one offer among many requests
             if (ride.pickupRequestId) {
                 const pickupRequestRef = doc(firestore, 'pickupRequests', ride.pickupRequestId);
-                await updateDoc(pickupRequestRef, { status: 'matched' });
+                batch.update(pickupRequestRef, { status: 'matched' });
+                
+                // Find and cancel other pending requests for the same offer
+                const otherRequestsQuery = query(
+                    collection(firestore, "rides"),
+                    where("pickupRequestId", "==", ride.pickupRequestId),
+                    where("status", "==", "requested")
+                );
+                const otherRequestsSnapshot = await getDocs(otherRequestsQuery);
+                const notificationsCollection = collection(firestore, "notifications");
+    
+                otherRequestsSnapshot.forEach(rideDoc => {
+                    if (rideDoc.id === ride.id) return; // Don't cancel the one we're accepting
+    
+                    const otherRideRef = doc(firestore, 'rides', rideDoc.id);
+                    batch.update(otherRideRef, { status: 'cancelled_by_provider' });
+    
+                    const rideData = rideDoc.data() as Ride;
+                    const newNotification: Omit<Notification, 'id'> = {
+                        userId: rideData.passengerId, // Notify the passenger
+                        rideId: rideDoc.id,
+                        message: `${driverProfile.name} has accepted another request for the ride you requested.`,
+                        type: 'ride_cancelled',
+                        cancelledBy: 'provider',
+                        isRead: false,
+                        createdAt: serverTimestamp()
+                    };
+                    const newNotifRef = doc(notificationsCollection);
+                    batch.set(newNotifRef, newNotification);
+                });
             }
-
+            
+            await batch.commit();
+            
             toast({
-                title: 'Ride Updated!',
-                description: `The ride status is now '${newStatus}'.`
+                title: 'Ride Accepted!',
+                description: `The ride has been confirmed with the passenger.`
             });
+    
         } catch (error) {
-            console.error("Failed to update ride status", error);
-            toast({ variant: 'destructive', title: 'Update failed' });
+            console.error("Failed to accept ride request", error);
+            toast({ variant: 'destructive', title: 'Acceptance failed' });
         } finally {
             setIsUpdating(false);
         }
     };
-    
+
     const handleCancel = async () => {
         if (!rideRef || !firestore || !user || !ride || !driverProfile || !passengerProfile) return;
         setIsUpdating(true);
@@ -109,24 +152,30 @@ function RideDetailPage() {
             const newStatus = isCurrentUserDriver ? 'cancelled_by_provider' : 'cancelled_by_passenger';
             await updateDoc(rideRef, { status: newStatus });
 
-            const otherUserId = isCurrentUserDriver ? ride.passengerId : ride.driverId;
-            const currentUserProfile = isCurrentUserDriver ? driverProfile : passengerProfile;
-            
-            const notificationsCollection = collection(firestore, "notifications");
-            const newNotification: Omit<Notification, 'id'> = {
-                userId: otherUserId,
-                rideId: ride.id,
-                message: `${currentUserProfile.name} has canceled the ride.`,
-                type: 'ride_cancelled',
-                cancelledBy: isCurrentUserDriver ? 'provider' : 'passenger',
-                isRead: false,
-                createdAt: serverTimestamp()
-            };
-            await addDoc(notificationsCollection, newNotification);
+            const isCancellingPendingRequest = ride.status === 'requested' && isCurrentUserPassenger;
+
+            // Only notify if the ride was already accepted, or if a driver cancels a pending request on a passenger.
+            if (!isCancellingPendingRequest) {
+                const otherUserId = isCurrentUserDriver ? ride.passengerId : ride.driverId;
+                const currentUserProfile = isCurrentUserDriver ? driverProfile : passengerProfile;
+                
+                const notificationsCollection = collection(firestore, "notifications");
+                const newNotification: Omit<Notification, 'id'> = {
+                    userId: otherUserId,
+                    rideId: ride.id,
+                    message: `${currentUserProfile.name} has canceled your ride.`,
+                    type: 'ride_cancelled',
+                    cancelledBy: isCurrentUserDriver ? 'provider' : 'passenger',
+                    isRead: false,
+                    createdAt: serverTimestamp()
+                };
+                await addDoc(notificationsCollection, newNotification);
+            }
+
 
             toast({
                 title: 'Ride Canceled',
-                description: 'The ride has been successfully canceled. The other user will be notified.'
+                description: 'The ride has been successfully canceled.'
             });
         } catch (error) {
             console.error("Failed to cancel ride", error);
@@ -150,9 +199,12 @@ function RideDetailPage() {
             </div>
         );
     }
-
+    
     const canAccept = ride.status === 'requested' && isCurrentUserDriver;
-    const canCancel = ['requested', 'accepted', 'confirmed'].includes(ride.status);
+    // A passenger can cancel their *request*. Any participant can cancel an *accepted/confirmed* ride.
+    const canCancel = (ride.status === 'requested' && isCurrentUserPassenger) || ['accepted', 'confirmed'].includes(ride.status);
+    const cancelButtonText = ride.status === 'requested' && isCurrentUserPassenger ? 'Cancel Request' : 'Cancel Ride';
+
 
     const statusText = ride.status.replace(/_/g, ' ');
     let badgeVariant: "default" | "secondary" | "destructive" = "secondary";
@@ -170,9 +222,9 @@ function RideDetailPage() {
              <CardFooter className="flex gap-2 justify-end">
                 {canCancel && <Button variant="destructive" onClick={handleCancel} disabled={isUpdating}>
                     {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    Cancel Ride
+                    {cancelButtonText}
                 </Button>}
-                {canAccept && <Button onClick={() => handleUpdateStatus('accepted')} disabled={isUpdating}>
+                {canAccept && <Button onClick={handleAcceptRequest} disabled={isUpdating}>
                     {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     Accept Request
                 </Button>}
