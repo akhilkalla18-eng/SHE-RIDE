@@ -25,7 +25,7 @@ import {
     XAxis,
     YAxis,
   } from "recharts"
-import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc } from "firebase/firestore"
+import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc, updateDoc } from "firebase/firestore"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -56,6 +56,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
@@ -108,22 +109,23 @@ export default function Dashboard() {
     
     const myPickupRequestsQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
-        // Don't apply orderBy here to avoid needing a composite index. Sorting is done in latestActiveOffer.
         return query(collection(firestore, "pickupRequests"), where("userProfileId", "==", user.uid));
     }, [firestore, user]);
     const { data: myPickupRequests, isLoading: areMyPickupsLoading } = useCollection<PickupRequest>(myPickupRequestsQuery);
     
     const latestActiveOffer = React.useMemo(() => {
         if (!myPickupRequests) return null;
-        const sortedRequests = [...myPickupRequests].sort((a, b) => {
-            const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-            const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-            return dateB - dateA;
-        });
-        // Find the most recent offer that isn't cancelled to track.
-        // If it's matched/completed, we still want to show its final state.
-        return sortedRequests[0] || null;
+        const active = myPickupRequests.filter(r => ['open', 'matched'].includes(r.status));
+        if (active.length > 0) {
+            return active.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        }
+        const terminal = myPickupRequests.filter(r => !['open', 'matched'].includes(r.status));
+        if(terminal.length > 0) {
+            return terminal.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        }
+        return null;
     }, [myPickupRequests]);
+
 
     const associatedRidesQuery = React.useMemo(() => {
         if (!firestore || !latestActiveOffer || !user?.uid) return null;
@@ -131,16 +133,31 @@ export default function Dashboard() {
     }, [firestore, latestActiveOffer, user?.uid]);
     const { data: associatedRides, isLoading: areAssociatedRidesLoading } = useCollection<Ride>(associatedRidesQuery);
 
-    const definitiveRide = React.useMemo(() => {
+    const definitiveRideForOffer = React.useMemo(() => {
         if (!associatedRides || associatedRides.length === 0) return null;
-        // Find a ride that is confirmed, accepted, or completed. This is the "active" one.
         const activeRide = associatedRides.find(r => ['accepted', 'confirmed', 'completed'].includes(r.status));
         if (activeRide) return activeRide;
-        
-        // If no active ride, but there are pending requests, just return the first one.
-        // The status card will interpret 'requested' as 'pending' anyway.
         return associatedRides[0];
     }, [associatedRides]);
+
+    const myRequestedRidesQuery = React.useMemo(() => {
+        if (!user || !firestore) return null;
+        return query(collection(firestore, "rides"), where("passengerId", "==", user.uid));
+    }, [firestore, user]);
+    const { data: myRequestedRides, isLoading: areMyRequestsLoading } = useCollection<Ride>(myRequestedRidesQuery);
+
+    const latestRequestedRide = React.useMemo(() => {
+        if (!myRequestedRides || myRequestedRides.length === 0) return null;
+        const active = myRequestedRides.filter(r => ['requested', 'accepted', 'confirmed'].includes(r.status));
+        if (active.length > 0) {
+            return active.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        }
+        const terminal = myRequestedRides.filter(r => !['requested', 'accepted', 'confirmed'].includes(r.status));
+        if (terminal.length > 0) {
+            return terminal.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        }
+        return null;
+    }, [myRequestedRides]);
 
 
     const upcomingRides = React.useMemo(() => {
@@ -175,7 +192,7 @@ export default function Dashboard() {
         ]);
     }, []);
 
-    const isLoading = isUserLoading || isProfileLoading;
+    const isLoading = isUserLoading || isProfileLoading || areMyPickupsLoading || areAssociatedRidesLoading || areMyRequestsLoading;
 
   return (
     <div className="flex flex-col gap-4 md:gap-8">
@@ -250,9 +267,10 @@ export default function Dashboard() {
         </div>
         <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
             <MyRideStatusCard 
-                offer={latestActiveOffer} 
-                ride={definitiveRide}
-                isLoading={areMyPickupsLoading || areAssociatedRidesLoading}
+                offeredRideOffer={latestActiveOffer}
+                offeredRide={definitiveRideForOffer}
+                requestedRide={latestRequestedRide}
+                isLoading={isLoading}
             />
           <Card>
             <CardHeader>
@@ -333,7 +351,101 @@ export default function Dashboard() {
   )
 }
 
-function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | null, ride: Ride | null, isLoading: boolean }) {
+function MyRideStatusCard({
+    offeredRideOffer,
+    offeredRide,
+    requestedRide,
+    isLoading,
+}: {
+    offeredRideOffer: PickupRequest | null;
+    offeredRide: Ride | null;
+    requestedRide: Ride | null;
+    isLoading: boolean;
+}) {
+    if (isLoading) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>My Ride Status</CardTitle>
+                    <CardDescription>Track the progress of your offered and requested rides.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-32 w-full mt-4" />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (!offeredRideOffer && !requestedRide) {
+        return (
+            <Card className="flex flex-col items-center justify-center min-h-[300px] md:min-h-full">
+                <CardHeader className="text-center">
+                    <CardTitle>My Ride Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <EmptyState
+                        title="No Active Rides"
+                        description="You haven't offered or requested any rides yet."
+                        icon={CircleDot}
+                    />
+                </CardContent>
+                 <CardFooter>
+                    <Button asChild>
+                        <Link href="/rides/create-pickup">Offer a Ride</Link>
+                    </Button>
+                </CardFooter>
+            </Card>
+        );
+    }
+
+    const defaultTab = offeredRideOffer ? 'offered' : 'requested';
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>My Ride Status</CardTitle>
+                <CardDescription>Track the progress of your offered and requested rides.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Tabs defaultValue={defaultTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="offered" disabled={!offeredRideOffer}>Rides Offered</TabsTrigger>
+                        <TabsTrigger value="requested" disabled={!requestedRide}>Rides Requested</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="offered" className="mt-4">
+                        {offeredRideOffer ? (
+                            <OfferedRideView offer={offeredRideOffer} ride={offeredRide} />
+                        ) : (
+                            <div className="py-8 text-center">
+                                 <EmptyState
+                                    title="No Rides Offered"
+                                    description="You haven't offered any rides yet."
+                                    icon={CircleDot}
+                                />
+                            </div>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="requested" className="mt-4">
+                        {requestedRide ? (
+                            <RequestedRideView ride={requestedRide} />
+                        ) : (
+                             <div className="py-8 text-center">
+                                <EmptyState
+                                    title="No Rides Requested"
+                                    description="You haven't sent any ride requests yet."
+                                    icon={Search}
+                                />
+                            </div>
+                        )}
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+        </Card>
+    );
+}
+
+function OfferedRideView({ offer, ride }: { offer: PickupRequest, ride: Ride | null }) {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
@@ -343,7 +455,6 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
         if (!firestore || !ride?.passengerId) return null;
         return doc(firestore, 'users', ride.passengerId);
     }, [firestore, ride]);
-
     const { data: passengerProfile, isLoading: isPassengerLoading } = useDoc<UserProfile>(passengerProfileRef);
 
     let step: 'pending' | 'confirmed' | 'completed' | 'cancelled' | null = null;
@@ -356,10 +467,10 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
         } else if (ride && ride.status === 'completed') {
             step = 'completed';
             statusText = 'Ride Completed';
-        } else if (ride && (ride.status === 'accepted' || ride.status === 'confirmed')) {
+        } else if (offer.status === 'matched' && ride && (ride.status === 'accepted' || ride.status === 'confirmed')) {
             step = 'confirmed';
             statusText = 'Ride Confirmed';
-        } else {
+        } else if (offer.status === 'open') {
             step = 'pending';
             statusText = 'Ride Pending';
         }
@@ -373,12 +484,9 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
 
         try {
             const batch = writeBatch(firestore);
-
-            // 1. Cancel the main pickup request
             const pickupRequestRef = doc(firestore, 'pickupRequests', offer.id);
             batch.update(pickupRequestRef, { status: 'cancelled' });
 
-            // 2. Find all pending ride requests for this offer
             const ridesQuery = query(collection(firestore, "rides"), where("pickupRequestId", "==", offer.id), where("status", "==", "requested"));
             const rideRequestsSnapshot = await getDocs(ridesQuery);
 
@@ -386,14 +494,13 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
             const currentUserProfile = currentUserProfileSnap.data() as UserProfile;
             const notificationsCollection = collection(firestore, "notifications");
 
-            // 3. Cancel each pending ride and create a notification
             rideRequestsSnapshot.forEach(rideDoc => {
                 const rideRef = doc(firestore, 'rides', rideDoc.id);
-                batch.update(rideRef, { status: 'cancelled' });
+                batch.update(rideRef, { status: 'cancelled_by_provider' });
 
                 const rideData = rideDoc.data() as Ride;
                 const newNotification: Omit<Notification, 'id'> = {
-                    userId: rideData.passengerId, // Notify the passenger
+                    userId: rideData.passengerId,
                     rideId: rideDoc.id,
                     message: `The ride offered by ${currentUserProfile.name} from ${offer.startingLocation} has been canceled.`,
                     type: 'ride_cancelled',
@@ -405,7 +512,6 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
                 batch.set(newNotifRef, newNotification);
             });
 
-            // 4. Commit the batch
             await batch.commit();
 
             toast({
@@ -420,98 +526,58 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
             setIsCancelling(false);
         }
     }
-
-    if (isLoading) {
-        return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>My Ride Status</CardTitle>
-                    <CardDescription>Track the progress of your latest offered ride.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-6 w-1/2" />
-                </CardContent>
-            </Card>
-        );
-    }
-    
-    if (!step || !rideDetails) {
-        return (
-            <Card className="flex flex-col items-center justify-center min-h-[300px] md:min-h-full">
-                <CardHeader className="text-center">
-                    <CardTitle>My Ride Status</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <EmptyState
-                        title="No Active Rides"
-                        description="You haven't offered any rides yet."
-                        icon={CircleDot}
-                    />
-                </CardContent>
-            </Card>
-        );
-    }
     
     const canCancelOffer = step === 'pending';
 
     return (
-        <Card className="flex flex-col">
-            <CardHeader>
-                <div className="flex justify-between items-start">
-                    <div>
-                        <CardTitle>My Ride Status</CardTitle>
-                        <CardDescription>Track the progress of your latest offered ride.</CardDescription>
-                    </div>
-                    <Badge variant={
-                        step === 'completed' ? 'default' : 
-                        step === 'confirmed' ? 'secondary' :
-                        step === 'cancelled' ? 'destructive' :
-                        'destructive'
-                    } className={cn(step==='pending' && 'bg-orange-500 text-white')}>{statusText}</Badge>
+        <div className="space-y-4">
+             <div className="flex justify-between items-start">
+                <div className="text-xs text-muted-foreground p-2">
+                    <span>{new Date(rideDetails.dateTime).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    {' - '}
+                    <span>₹{rideDetails.sharedCost || rideDetails.expectedCost}</span>
                 </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div>
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
-                        <div className="font-medium truncate pr-2">{rideDetails.fromLocation || rideDetails.startingLocation}</div>
-                        <ArrowUpRight className="h-4 w-4 text-primary flex-shrink-0 mx-2"/>
-                        <div className="font-medium truncate pl-2 text-right">{rideDetails.toLocation || rideDetails.destination}</div>
-                    </div>
-                     <div className="text-xs text-muted-foreground p-2">
-                        <span>{new Date(rideDetails.dateTime).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        {' - '}
-                        <span>₹{rideDetails.sharedCost || rideDetails.expectedCost}</span>
-                    </div>
-                </div>
-                <RideProgressBar currentStep={step} />
-                {step === 'confirmed' && (
-                    <Card className="bg-muted/50">
-                        <CardHeader className="p-4">
-                            <div className="flex items-center justify-between">
-                                {isPassengerLoading ? <Skeleton className="h-8 w-40" /> : passengerProfile ? (
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-10 w-10">
-                                            <AvatarImage src={(passengerProfile as any)?.photoURL || placeholderImages.find(p => p.id === 'avatar2')?.imageUrl} />
-                                            <AvatarFallback>{passengerProfile.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <p className="text-sm font-semibold">{passengerProfile.name}</p>
-                                            <p className="text-xs text-muted-foreground">Your confirmed passenger</p>
-                                        </div>
+                <Badge variant={
+                    step === 'completed' ? 'default' : 
+                    step === 'confirmed' ? 'secondary' :
+                    step === 'cancelled' ? 'destructive' :
+                    'outline'
+                } className={cn(step==='pending' && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
+                <div className="font-medium truncate pr-2">{rideDetails.fromLocation || rideDetails.startingLocation}</div>
+                <ArrowUpRight className="h-4 w-4 text-primary flex-shrink-0 mx-2"/>
+                <div className="font-medium truncate pl-2 text-right">{rideDetails.toLocation || rideDetails.destination}</div>
+            </div>
+            
+            <RideProgressBar currentStep={step} />
+            
+            {step === 'confirmed' && (
+                <Card className="bg-muted/50">
+                    <CardHeader className="p-4">
+                        <div className="flex items-center justify-between">
+                            {isPassengerLoading ? <Skeleton className="h-8 w-40" /> : passengerProfile ? (
+                                <div className="flex items-center gap-3">
+                                    <Avatar className="h-10 w-10">
+                                        <AvatarImage src={(passengerProfile as any)?.photoURL || placeholderImages.find(p => p.id === 'avatar2')?.imageUrl} />
+                                        <AvatarFallback>{passengerProfile.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="text-sm font-semibold">{passengerProfile.name}</p>
+                                        <p className="text-xs text-muted-foreground">Your confirmed passenger</p>
                                     </div>
-                                ) : <p className="text-sm">Passenger details loading...</p>}
-                                <Button variant="outline" size="sm">
-                                    <MessageSquare className="mr-2 h-4 w-4" /> Chat
-                                </Button>
-                            </div>
-                        </CardHeader>
-                    </Card>
-                )}
-            </CardContent>
+                                </div>
+                            ) : <p className="text-sm">Passenger details loading...</p>}
+                            <Button variant="outline" size="sm">
+                                <MessageSquare className="mr-2 h-4 w-4" /> Chat
+                            </Button>
+                        </div>
+                    </CardHeader>
+                </Card>
+            )}
+
             {canCancelOffer && (
-                <CardFooter className="justify-end">
+                 <div className="pt-2 flex justify-end">
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" disabled={isCancelling}>
@@ -534,11 +600,159 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
-                </CardFooter>
+                </div>
             )}
-        </Card>
+        </div>
     );
 }
+
+function RequestedRideView({ ride }: { ride: Ride }) {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [isCancelling, setIsCancelling] = React.useState(false);
+
+    const driverProfileRef = React.useMemo(() => {
+        if (!firestore || !ride?.driverId) return null;
+        return doc(firestore, 'users', ride.driverId);
+    }, [firestore, ride]);
+
+    const { data: driverProfile, isLoading: isDriverLoading } = useDoc<UserProfile>(driverProfileRef);
+    
+    let step: 'pending' | 'confirmed' | 'completed' | 'cancelled' | null = null;
+    let statusText = "Unknown Status";
+    let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary";
+
+    switch(ride.status) {
+        case 'requested':
+            step = 'pending';
+            statusText = 'Request Pending';
+            badgeVariant = 'secondary';
+            break;
+        case 'accepted':
+        case 'confirmed':
+            step = 'confirmed';
+            statusText = 'Ride Confirmed';
+            badgeVariant = 'default';
+            break;
+        case 'completed':
+            step = 'completed';
+            statusText = 'Ride Completed';
+            badgeVariant = 'default';
+            break;
+        case 'cancelled_by_passenger':
+            step = 'cancelled';
+            statusText = 'You Cancelled';
+            badgeVariant = 'destructive';
+            break;
+        case 'cancelled_by_provider':
+            step = 'cancelled';
+            statusText = 'Rider Cancelled';
+            badgeVariant = 'destructive';
+            break;
+        case 'cancelled':
+            step = 'cancelled';
+            statusText = 'Ride Cancelled';
+            badgeVariant = 'destructive';
+            break;
+    }
+
+    const handleCancelRequest = async () => {
+        if (!ride || !firestore) return;
+        setIsCancelling(true);
+
+        try {
+            const rideRef = doc(firestore, 'rides', ride.id);
+            await updateDoc(rideRef, { status: 'cancelled_by_passenger' });
+             toast({
+                title: "Request Canceled",
+                description: "Your request for this ride has been withdrawn.",
+            });
+        } catch (error) {
+            console.error("Error cancelling request:", error);
+            toast({ variant: 'destructive', title: "Error", description: "Could not cancel your request." });
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+    
+    const canCancelRequest = ride.status === 'requested';
+
+    return (
+        <div className="space-y-4">
+             <div className="flex justify-between items-start">
+                <div className="text-xs text-muted-foreground p-2">
+                    <span>{new Date(ride.dateTime).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    {' - '}
+                    <span>₹{ride.sharedCost}</span>
+                </div>
+                <Badge variant={badgeVariant} className={cn('capitalize', ride.status === 'requested' && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
+                <div className="font-medium truncate pr-2">{ride.fromLocation}</div>
+                <ArrowUpRight className="h-4 w-4 text-primary flex-shrink-0 mx-2"/>
+                <div className="font-medium truncate pl-2 text-right">{ride.toLocation}</div>
+            </div>
+
+            <RideProgressBar currentStep={step} />
+
+             {step !== 'pending' && (
+                <Card className="bg-muted/50">
+                    <CardHeader className="p-4">
+                        <div className="flex items-center justify-between">
+                            {isDriverLoading ? <Skeleton className="h-8 w-40" /> : driverProfile ? (
+                                <div className="flex items-center gap-3">
+                                    <Avatar className="h-10 w-10">
+                                        <AvatarImage src={(driverProfile as any)?.photoURL || placeholderImages.find(p => p.id === 'avatar1')?.imageUrl} />
+                                        <AvatarFallback>{driverProfile.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="text-sm font-semibold">{driverProfile.name}</p>
+                                        <p className="text-xs text-muted-foreground">Your ride provider</p>
+                                    </div>
+                                </div>
+                            ) : <p className="text-sm">Driver details loading...</p>}
+                            {step === 'confirmed' && (
+                                 <Button variant="outline" size="sm">
+                                    <MessageSquare className="mr-2 h-4 w-4" /> Chat
+                                </Button>
+                            )}
+                        </div>
+                    </CardHeader>
+                </Card>
+            )}
+
+            {canCancelRequest && (
+                 <div className="pt-2 flex justify-end">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={isCancelling}>
+                                {isCancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Cancel Request
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Cancel Ride Request?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                   Are you sure you want to withdraw your request for this ride?
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Go Back</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleCancelRequest} className={buttonVariants({ variant: "destructive" })}>
+                                    Confirm Cancel
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            )}
+
+        </div>
+    );
+}
+
 
 function RideProgressBar({ currentStep }: { currentStep: 'pending' | 'confirmed' | 'completed' | 'cancelled' | null }) {
     const steps = [
@@ -571,7 +785,7 @@ function RideProgressBar({ currentStep }: { currentStep: 'pending' | 'confirmed'
     const currentStepIndex = steps.findIndex(s => s.key === currentStep);
 
     return (
-        <div className="relative">
+        <div className="relative pt-2">
             <div className="absolute left-0 top-1/2 w-full h-0.5 bg-muted -translate-y-1/2" aria-hidden="true">
                  <div className="absolute left-0 top-0 h-full bg-primary transition-all duration-500" style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }} />
             </div>
@@ -590,7 +804,7 @@ function RideProgressBar({ currentStep }: { currentStep: 'pending' | 'confirmed'
                             </div>
                             <span className={cn(
                                 "mt-2 text-xs font-semibold",
-                                isCurrent ? "text-primary" : "text-muted-foreground"
+                                (isCompleted || isCurrent) ? "text-primary" : "text-muted-foreground"
                             )}>{step.name}</span>
                         </li>
                     );
@@ -617,5 +831,3 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
-
-    
