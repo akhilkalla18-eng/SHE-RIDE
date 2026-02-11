@@ -15,6 +15,8 @@ import {
   PartyPopper,
   CircleDot,
   MessageSquare,
+  XCircle,
+  Loader2,
 } from "lucide-react"
 import {
     Bar,
@@ -23,14 +25,15 @@ import {
     XAxis,
     YAxis,
   } from "recharts"
-import { doc, collection, query, where } from "firebase/firestore"
+import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc } from "firebase/firestore"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -42,13 +45,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { useUser, useFirestore, useDoc, useCollection } from "@/firebase"
-import type { UserProfile, Ride, PickupRequest, ServiceRequest } from "@/lib/schemas"
+import type { UserProfile, Ride, PickupRequest, ServiceRequest, Notification } from "@/lib/schemas"
 import { placeholderImages } from "@/lib/placeholder-images"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 const EmptyState = ({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) => (
     <div className="text-center py-8">
@@ -93,6 +108,7 @@ export default function Dashboard() {
     
     const myPickupRequestsQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
+        // Don't apply orderBy here to avoid needing a composite index. Sorting is done in latestActiveOffer.
         return query(collection(firestore, "pickupRequests"), where("userProfileId", "==", user.uid));
     }, [firestore, user]);
     const { data: myPickupRequests, isLoading: areMyPickupsLoading } = useCollection<PickupRequest>(myPickupRequestsQuery);
@@ -104,7 +120,9 @@ export default function Dashboard() {
             const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
             return dateB - dateA;
         });
-        return sortedRequests.find(req => req.status !== 'cancelled') || null;
+        // Find the most recent offer that isn't cancelled to track.
+        // If it's matched/completed, we still want to show its final state.
+        return sortedRequests[0] || null;
     }, [myPickupRequests]);
 
     const associatedRidesQuery = React.useMemo(() => {
@@ -317,6 +335,9 @@ export default function Dashboard() {
 
 function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | null, ride: Ride | null, isLoading: boolean }) {
     const firestore = useFirestore();
+    const { user } = useUser();
+    const { toast } = useToast();
+    const [isCancelling, setIsCancelling] = React.useState(false);
 
     const passengerProfileRef = React.useMemo(() => {
         if (!firestore || !ride?.passengerId) return null;
@@ -325,25 +346,80 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
 
     const { data: passengerProfile, isLoading: isPassengerLoading } = useDoc<UserProfile>(passengerProfileRef);
 
-    let step: 'pending' | 'confirmed' | 'completed' | null = null;
+    let step: 'pending' | 'confirmed' | 'completed' | 'cancelled' | null = null;
     let statusText = "No Active Ride";
     
     if (offer) {
-        step = 'pending';
-        statusText = 'Ride Pending';
-
-        if (ride) {
-            if (ride.status === 'completed') {
-                step = 'completed';
-                statusText = 'Ride Completed';
-            } else if (ride.status === 'accepted' || ride.status === 'confirmed') {
-                step = 'confirmed';
-                statusText = 'Ride Confirmed';
-            }
+        if (offer.status === 'cancelled') {
+            step = 'cancelled';
+            statusText = 'Ride Cancelled';
+        } else if (ride && ride.status === 'completed') {
+            step = 'completed';
+            statusText = 'Ride Completed';
+        } else if (ride && (ride.status === 'accepted' || ride.status === 'confirmed')) {
+            step = 'confirmed';
+            statusText = 'Ride Confirmed';
+        } else {
+            step = 'pending';
+            statusText = 'Ride Pending';
         }
     }
     
     const rideDetails = ride || offer;
+
+    const handleCancelOffer = async () => {
+        if (!offer || !firestore || !user) return;
+        setIsCancelling(true);
+
+        try {
+            const batch = writeBatch(firestore);
+
+            // 1. Cancel the main pickup request
+            const pickupRequestRef = doc(firestore, 'pickupRequests', offer.id);
+            batch.update(pickupRequestRef, { status: 'cancelled' });
+
+            // 2. Find all pending ride requests for this offer
+            const ridesQuery = query(collection(firestore, "rides"), where("pickupRequestId", "==", offer.id), where("status", "==", "requested"));
+            const rideRequestsSnapshot = await getDocs(ridesQuery);
+
+            const currentUserProfileSnap = await getDoc(doc(firestore, 'users', user.uid));
+            const currentUserProfile = currentUserProfileSnap.data() as UserProfile;
+            const notificationsCollection = collection(firestore, "notifications");
+
+            // 3. Cancel each pending ride and create a notification
+            rideRequestsSnapshot.forEach(rideDoc => {
+                const rideRef = doc(firestore, 'rides', rideDoc.id);
+                batch.update(rideRef, { status: 'cancelled' });
+
+                const rideData = rideDoc.data() as Ride;
+                const newNotification: Omit<Notification, 'id'> = {
+                    userId: rideData.passengerId, // Notify the passenger
+                    rideId: rideDoc.id,
+                    message: `The ride offered by ${currentUserProfile.name} from ${offer.startingLocation} has been canceled.`,
+                    type: 'ride_cancelled',
+                    cancelledBy: 'provider',
+                    isRead: false,
+                    createdAt: serverTimestamp()
+                };
+                const newNotifRef = doc(notificationsCollection);
+                batch.set(newNotifRef, newNotification);
+            });
+
+            // 4. Commit the batch
+            await batch.commit();
+
+            toast({
+                title: "Ride Offer Canceled",
+                description: "Your offer has been removed and any requesters have been notified.",
+            });
+
+        } catch (error) {
+            console.error("Failed to cancel ride offer", error);
+            toast({ variant: 'destructive', title: 'Cancellation Failed', description: "Could not cancel the ride offer. Please try again." });
+        } finally {
+            setIsCancelling(false);
+        }
+    }
 
     if (isLoading) {
         return (
@@ -377,18 +453,22 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
             </Card>
         );
     }
+    
+    const canCancelOffer = step === 'pending';
 
     return (
-        <Card>
+        <Card className="flex flex-col">
             <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-start">
                     <div>
                         <CardTitle>My Ride Status</CardTitle>
                         <CardDescription>Track the progress of your latest offered ride.</CardDescription>
                     </div>
                     <Badge variant={
                         step === 'completed' ? 'default' : 
-                        step === 'confirmed' ? 'secondary' : 'destructive'
+                        step === 'confirmed' ? 'secondary' :
+                        step === 'cancelled' ? 'destructive' :
+                        'destructive'
                     } className={cn(step==='pending' && 'bg-orange-500 text-white')}>{statusText}</Badge>
                 </div>
             </CardHeader>
@@ -430,16 +510,64 @@ function MyRideStatusCard({ offer, ride, isLoading }: { offer: PickupRequest | n
                     </Card>
                 )}
             </CardContent>
+            {canCancelOffer && (
+                <CardFooter className="justify-end">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={isCancelling}>
+                                {isCancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Cancel Offer
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Cancel Ride Offer?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                   Are you sure you want to cancel this ride offer? This will notify any passengers who have sent requests. This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Go Back</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleCancelOffer} className={buttonVariants({ variant: "destructive" })}>
+                                    Confirm Cancel
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </CardFooter>
+            )}
         </Card>
     );
 }
 
-function RideProgressBar({ currentStep }: { currentStep: 'pending' | 'confirmed' | 'completed' }) {
+function RideProgressBar({ currentStep }: { currentStep: 'pending' | 'confirmed' | 'completed' | 'cancelled' | null }) {
     const steps = [
         { name: 'Pending', icon: Hourglass, key: 'pending' },
         { name: 'Confirmed', icon: CheckCircle, key: 'confirmed' },
         { name: 'Completed', icon: PartyPopper, key: 'completed' },
     ];
+
+    if (currentStep === 'cancelled') {
+        return (
+             <div className="relative pt-2">
+                 <div className="absolute left-0 top-1/2 w-full h-0.5 bg-destructive -translate-y-1/2" aria-hidden="true" />
+                 <ol className="relative flex justify-center w-full">
+                     <li className="flex flex-col items-center text-center">
+                         <div className={cn(
+                             'relative flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-300',
+                             'bg-destructive text-destructive-foreground'
+                         )}>
+                             <XCircle className="w-5 h-5" />
+                         </div>
+                         <span className={cn("mt-2 text-xs font-semibold", "text-destructive")}>Cancelled</span>
+                     </li>
+                 </ol>
+             </div>
+        );
+    }
+    
+    if (!currentStep) return null;
+
     const currentStepIndex = steps.findIndex(s => s.key === currentStep);
 
     return (
@@ -489,3 +617,5 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
