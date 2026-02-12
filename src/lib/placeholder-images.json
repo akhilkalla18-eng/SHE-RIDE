@@ -2,33 +2,33 @@
   "placeholderImages": [
     {
       "id": "hero",
-      "description": "Two smiling women wearing helmets share a scooter ride through a city, embodying the safe and friendly community of SheRide.",
-      "imageUrl": "https://images.unsplash.com/photo-1618357062486-574345719a9a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx0d28lMjB3b21lbiUyMG9uJTIwc2Nvb3RlciUyMGluZGlhfGVufDB8fHx8MTcyMDczMTg5OHww&ixlib=rb-4.0.3&q=80&w=1080",
-      "imageHint": "women scooter travel"
+      "description": "Two women joyfully riding a scooter through a green, tree-lined street, representing freedom and safe companionship.",
+      "imageUrl": "https://images.unsplash.com/photo-1599893952192-d698a58f4c28?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHx0d28lMjB3b21lbiUyMHJpZGluZyUyMHNjb290ZXJ8ZW58MHx8fHwxNzcxMDExNzM5fDA&ixlib=rb-4.0.3&q=80&w=1080",
+      "imageHint": "women scooter journey"
     },
     {
       "id": "safety",
-      "description": "A woman rider passing a helmet to another woman with a smile, showcasing the platform's emphasis on safety and trust.",
-      "imageUrl": "https://images.unsplash.com/photo-1550165946-6c770414edb8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx3b21lbiUyMGhlbG1ldCUyMHNhZmV0eXxlbnwwfHx8fDE3NjkxNzU1MTd8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "women helmet safety"
+      "description": "A close-up shot of two women's hands clasped in a supportive gesture, symbolizing the trust and community at the heart of SheRide.",
+      "imageUrl": "https://images.unsplash.com/photo-1556442621-b510034d31d7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx3b21hbiUyMGhlbHBpbmclMjB3b21hbnxlbnwwfHx8fDE3NzEwMTIwMTB8MA&ixlib=rb-4.0.3&q=80&w=1080",
+      "imageHint": "women trust support"
     },
     {
       "id": "avatar1",
-      "description": "Portrait of a smiling Indian woman in a professional setting, representing a SheRide user.",
-      "imageUrl": "https://images.unsplash.com/photo-1618284594047-86b43b59c4c7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxzbWlsaW5nJTIwaW5kaWFuJTIwd29tYW58ZW58MHx8fHwxNzY5MjU5ODg5fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "indian woman smiling"
+      "description": "Portrait of a smiling, professional Indian woman with glasses, representing a confident SheRide user.",
+      "imageUrl": "https://images.unsplash.com/photo-1598122214434-0a3c2a0d1858?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjB3b21hbiUyMHByb2Zlc3Npb25hbHxlbnwwfHx8fDE3NzEwMTIxNTF8MA&ixlib=rb-4.0.3&q=80&w=1080",
+      "imageHint": "professional woman"
     },
     {
       "id": "avatar2",
-      "description": "Portrait of a confident young woman in an urban Indian city, representing a SheRide commuter.",
-      "imageUrl": "https://images.unsplash.com/photo-161517306334-9f2639f75f78?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx5b3VuZyUyMGluZGlhbiUyMHdvbWFuJTIwdXJiYW58ZW58MHx8fHwxNzY5MjYwMDgyfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "indian woman urban"
+      "description": "A young, modern Indian woman in a vibrant urban setting, looking thoughtfully into the distance.",
+      "imageUrl": "https://images.unsplash.com/photo-1604514288429-2a4209569344?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHx5b3VuZyUyMGluZGlhbiUyMHdvbWFufGVufDB8fHx8MTc3MTAxMjI1MHww&ixlib=rb-4.0.3&q=80&w=1080",
+      "imageHint": "modern woman urban"
     },
     {
       "id": "avatar3",
-      "description": "A woman enjoying her travel in a modern Indian city, representing a happy SheRide member.",
-      "imageUrl": "https://images.unsplash.com/photo-1626543419084-9d554a938637?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHx3b21hbiUyMHRyYXZlbCUyMGluZGlhbiUyMGNpdHl8ZW58MHx8fHwxNzY5MjYwMjIxfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "woman travel city"
+      "description": "A cheerful Indian woman with a warm smile, embodying the friendly and welcoming spirit of the SheRide community.",
+      "imageUrl": "https://images.unsplash.com/photo-1542623321-2a6279f08c35?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxzbWlsaW5nJTIwaW5kaWFuJTIwd29tYW58ZW58MHx8fHwxNzY5MjU5ODg5fDA&ixlib=rb-4.0.3&q=80&w=1080",
+      "imageHint": "cheerful woman portrait"
     },
     {
       "id": "auth",
