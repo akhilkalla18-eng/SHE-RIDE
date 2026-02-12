@@ -3,6 +3,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from "@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import type { Ride } from "@/lib/schemas";
 import { Loader2 } from "lucide-react";
+import { placeholderImages } from "@/lib/placeholder-images";
 
 
 export default function CreatePickupPage() {
@@ -21,6 +23,7 @@ export default function CreatePickupPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const heroImage = placeholderImages.find(p => p.id === 'create-pickup-hero');
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -49,7 +52,6 @@ export default function CreatePickupPage() {
             vehicleType: formData.get("vehicle-type") as 'Bike' | 'Scooty',
             sharedCost: Number(formData.get("cost")) || 0,
             createdAt: serverTimestamp(),
-            // Set default values for lifecycle fields
             otpVerified: false,
             riderStarted: false,
             passengerStarted: false,
@@ -78,59 +80,73 @@ export default function CreatePickupPage() {
     };
 
     return (
-        <div className="max-w-2xl mx-auto">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Offer a Ride</CardTitle>
-                    <CardDescription>Let others know your travel plans and share the journey.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form className="grid gap-6" onSubmit={handleSubmit}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="start-location">Starting Location</Label>
-                                <Input name="start-location" id="start-location" placeholder="e.g., Juhu, Mumbai" required />
+        <div className="grid md:grid-cols-2 gap-12 max-w-6xl mx-auto items-center">
+            <div className="max-w-2xl">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Offer a Ride</CardTitle>
+                        <CardDescription>Let others know your travel plans and share the journey.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <form className="grid gap-6" onSubmit={handleSubmit}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="start-location">Starting Location</Label>
+                                    <Input name="start-location" id="start-location" placeholder="e.g., Juhu, Mumbai" required />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="destination">Destination</Label>
+                                    <Input name="destination" id="destination" placeholder="e.g., Powai, Mumbai" required />
+                                </div>
                             </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="destination">Destination</Label>
-                                <Input name="destination" id="destination" placeholder="e.g., Powai, Mumbai" required />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="date">Date</Label>
+                                    <Input name="date" id="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="time">Time</Label>
+                                    <Input name="time" id="time" type="time" required />
+                                </div>
                             </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="date">Date</Label>
-                                <Input name="date" id="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 <div className="grid gap-2">
+                                    <Label htmlFor="vehicle-type">Vehicle Type</Label>
+                                    <Select name="vehicle-type" required>
+                                        <SelectTrigger id="vehicle-type">
+                                            <SelectValue placeholder="Select vehicle" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Bike">Bike</SelectItem>
+                                            <SelectItem value="Scooty">Scooty</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                 <div className="grid gap-2">
+                                    <Label htmlFor="cost">Expected Contribution (Optional)</Label>
+                                    <Input name="cost" id="cost" type="number" placeholder="e.g., 50 for fuel" />
+                                </div>
                             </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="time">Time</Label>
-                                <Input name="time" id="time" type="time" required />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div className="grid gap-2">
-                                <Label htmlFor="vehicle-type">Vehicle Type</Label>
-                                <Select name="vehicle-type" required>
-                                    <SelectTrigger id="vehicle-type">
-                                        <SelectValue placeholder="Select vehicle" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Bike">Bike</SelectItem>
-                                        <SelectItem value="Scooty">Scooty</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                             <div className="grid gap-2">
-                                <Label htmlFor="cost">Expected Contribution (Optional)</Label>
-                                <Input name="cost" id="cost" type="number" placeholder="e.g., 50 for fuel" />
-                            </div>
-                        </div>
-                        <Button type="submit" className="w-full md:w-auto md:ml-auto" disabled={isSubmitting || isUserLoading}>
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isSubmitting ? "Posting..." : "Create Ride Offer"}
-                        </Button>
-                    </form>
-                </CardContent>
-            </Card>
+                            <Button type="submit" className="w-full md:w-auto md:ml-auto" disabled={isSubmitting || isUserLoading}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {isSubmitting ? "Posting..." : "Create Ride Offer"}
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
+             <div className="hidden md:flex items-center justify-center p-8">
+                {heroImage && (
+                    <Image
+                        src={heroImage.imageUrl}
+                        alt={heroImage.description}
+                        width={400}
+                        height={400}
+                        className="rounded-xl object-cover shadow-2xl aspect-square"
+                        data-ai-hint={heroImage.imageHint}
+                    />
+                )}
+            </div>
         </div>
     );
 }

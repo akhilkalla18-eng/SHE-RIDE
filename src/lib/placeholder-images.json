@@ -35,6 +35,30 @@
       "description": "A stylish shot of a woman riding a scooter, seen from the side, representing independence and modern travel.",
       "imageUrl": "https://images.unsplash.com/photo-1671866604416-57a3fab71706?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHx3b21hbiUyMHJpZGluZyUyMHNjb290ZXJ8ZW58MHx8fHwxNzY5MTc1NTE3fDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "woman riding scooter"
+    },
+    {
+      "id": "create-pickup-hero",
+      "description": "A confident woman with a helmet standing next to her scooter, ready to offer a ride.",
+      "imageUrl": "https://images.unsplash.com/photo-1597268635633-62c437f96df0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8d29tYW4lMjBzY29vdGVyJTIwaGVsbWV0fGVufDB8fHx8MTc3MDg1NzQyMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman scooter helmet"
+    },
+    {
+      "id": "create-service-hero",
+      "description": "Two women looking at a map on a phone, planning their journey together.",
+      "imageUrl": "https://images.unsplash.com/photo-1657040298726-7189d3090d5e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8d29tZW4lMjBwbGFubmluZyUyMHRyYXZlbHxlbnwwfHx8fDE3NzA4NTc0MjJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "women planning travel"
+    },
+    {
+      "id": "suggestions-empty",
+      "description": "An illustration of a map with two pins and a scooter route, representing an available ride suggestion.",
+      "imageUrl": "https://images.unsplash.com/photo-1665952175324-932b86904098?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxyaWRlJTIwc3VnZ2VzdGlvbiUyMG1hcHxlbnwwfHx8fDE3NzA4NTc0MjJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "ride suggestion map"
+    },
+    {
+      "id": "dashboard-empty",
+      "description": "Illustration of a woman on a scooter waving, with a city skyline in the background.",
+      "imageUrl": "https://images.unsplash.com/photo-1602111426534-9c097255ca46?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx3b21hbiUyMHNjb290ZXIlMjBjaXR5fGVufDB8fHx8MTc3MDg1NzQyMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman scooter city"
     }
   ]
 }

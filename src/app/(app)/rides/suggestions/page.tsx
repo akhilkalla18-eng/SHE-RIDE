@@ -13,9 +13,10 @@ import { placeholderImages } from "@/lib/placeholder-images";
 import { UserProfile, Ride, RideRequest } from "@/lib/schemas";
 import { ArrowRight, Bike, Search, User as UserIcon, Coins } from "lucide-react";
 import React from "react";
-import { collection, query, where, doc, serverTimestamp, addDoc } from "firebase/firestore";
+import { collection, query, where, doc, serverTimestamp, addDoc, updateDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 
 const SuggestionSkeleton = () => (
@@ -40,13 +41,20 @@ const SuggestionSkeleton = () => (
     </Card>
 );
 
-const EmptyState = ({ title, description }: { title: string, description: string }) => (
-    <div className="col-span-full text-center py-16">
-        <Search className="mx-auto h-16 w-16 text-muted-foreground" />
-        <h2 className="mt-4 text-2xl font-semibold">{title}</h2>
-        <p className="mt-2 text-muted-foreground">{description}</p>
-    </div>
-);
+const EmptyState = ({ title, description }: { title: string, description: string }) => {
+    const emptyImage = placeholderImages.find(p => p.id === 'suggestions-empty');
+    return (
+        <div className="col-span-full text-center py-16 flex flex-col items-center">
+            {emptyImage ? (
+                <Image src={emptyImage.imageUrl} alt={emptyImage.description} width={200} height={150} className="mb-6 object-contain" data-ai-hint={emptyImage.imageHint} />
+            ) : (
+                <Search className="mx-auto h-16 w-16 text-muted-foreground" />
+            )}
+            <h2 className="mt-4 text-2xl font-semibold">{title}</h2>
+            <p className="mt-2 text-muted-foreground max-w-md mx-auto">{description}</p>
+        </div>
+    );
+}
 
 
 export default function SuggestionsPage() {
@@ -140,8 +148,8 @@ export default function SuggestionsPage() {
                             ))
                         ) : (
                            <EmptyState 
-                                title={searchTerm ? "No Matching Requests" : "No Ride Requests"}
-                                description={searchTerm ? "Your search didn't find any passengers looking for a ride." : "There are currently no passengers looking for a ride."}
+                                title={searchTerm ? "No Matching Requests" : "No Ride Requests Yet"}
+                                description={searchTerm ? "Your search didn't find any passengers looking for a ride." : "There are currently no passengers looking for a ride. Why not offer one?"}
                            />
                         )}
                     </div>
@@ -157,8 +165,8 @@ export default function SuggestionsPage() {
                             ))
                         ) : (
                            <EmptyState 
-                                title={searchTerm ? "No Matching Offers" : "No Ride Offers"}
-                                description={searchTerm ? "Your search didn't find any drivers offering a ride." : "There are currently no drivers offering rides."}
+                                title={searchTerm ? "No Matching Offers" : "No Ride Offers Yet"}
+                                description={searchTerm ? "Your search didn't find any drivers offering a ride." : "There are currently no drivers offering rides. Check back soon!"}
                            />
                         )}
                     </div>
@@ -193,13 +201,14 @@ function SuggestionCard({ ride, type, myRequests }: { ride: Ride, type: 'offer' 
         try {
             if (type === 'request') { // Current user is Driver, accepting a passenger's request
                 const rideRef = doc(firestore, 'rides', ride.id);
-                const otp = Math.floor(1000 + Math.random() * 9000).toString();
+                // Generate OTP only if it doesn't exist
+                const rideOtp = ride.rideOtp || Math.floor(1000 + Math.random() * 9000).toString();
                 await updateDoc(rideRef, {
                     driverId: user.uid,
-                    participantIds: arrayUnion(user.uid),
+                    participantIds: [ride.passengerId, user.uid],
                     status: 'confirmed',
                     acceptedAt: serverTimestamp(),
-                    rideOtp: otp,
+                    rideOtp: rideOtp,
                 });
                 toast({ title: "Ride Accepted!", description: "The ride is now confirmed. Please contact the passenger." });
                 router.push('/dashboard');

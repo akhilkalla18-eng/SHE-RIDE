@@ -51,11 +51,6 @@ const menuItems = [
     icon: Users,
   },
   {
-    href: "/route-optimizer",
-    label: "Route Optimizer",
-    icon: Route,
-  },
-  {
     href: "/profile",
     label: "Profile",
     icon: User,

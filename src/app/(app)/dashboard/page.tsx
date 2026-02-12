@@ -20,6 +20,7 @@ import {
   LockKeyhole,
   Rocket,
 } from "lucide-react"
+import Image from "next/image"
 import {
     Bar,
     BarChart,
@@ -27,7 +28,7 @@ import {
     XAxis,
     YAxis,
   } from "recharts"
-import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc, updateDoc, deleteDoc, arrayUnion } from "firebase/firestore"
+import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc, updateDoc, deleteDoc } from "firebase/firestore"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -68,9 +69,13 @@ import { placeholderImages } from "@/lib/placeholder-images"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 
-const EmptyState = ({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) => (
-    <div className="text-center py-8">
-        <Icon className="mx-auto h-12 w-12 text-muted-foreground" />
+const EmptyState = ({ title, description, icon: Icon, image }: { title: string, description: string, icon: React.ElementType, image?: {src: string, alt: string, hint: string} }) => (
+    <div className="text-center py-8 flex flex-col items-center">
+         {image ? (
+            <Image src={image.src} alt={image.alt} width={200} height={150} className="mx-auto mb-4 object-contain rounded-lg" data-ai-hint={image.hint} />
+        ) : (
+            <Icon className="mx-auto h-12 w-12 text-muted-foreground" />
+        )}
         <h3 className="mt-4 text-lg font-semibold">{title}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
     </div>
@@ -355,6 +360,7 @@ function MyRideStatusCard({
     requestedItem: Ride | RideRequest | null;
     isLoading: boolean;
 }) {
+    const dashboardEmptyImage = placeholderImages.find(p => p.id === 'dashboard-empty');
     if (isLoading) {
         return (
             <Card>
@@ -380,6 +386,7 @@ function MyRideStatusCard({
                         title="No Active Rides"
                         description="You haven't offered or requested any rides yet."
                         icon={CircleDot}
+                        image={dashboardEmptyImage ? { src: dashboardEmptyImage.imageUrl, alt: dashboardEmptyImage.description, hint: dashboardEmptyImage.imageHint } : undefined}
                     />
                 </CardContent>
                  <CardFooter>
@@ -511,13 +518,15 @@ function OfferedRideView({ ride }: { ride: Ride }) {
             const driverProfileSnap = await getDoc(doc(firestore, 'users', user.uid));
             const driverProfile = driverProfileSnap.data() as UserProfile;
 
-            const otp = Math.floor(1000 + Math.random() * 9000).toString();
+            // Generate OTP only if it doesn't exist
+            const rideOtp = ride.rideOtp || Math.floor(1000 + Math.random() * 9000).toString();
+
             batch.update(rideRef, {
                 status: 'confirmed',
                 passengerId: requestToAccept.passengerId,
-                participantIds: arrayUnion(requestToAccept.passengerId),
+                participantIds: [ride.driverId, requestToAccept.passengerId],
                 acceptedAt: serverTimestamp(),
-                rideOtp: otp,
+                rideOtp: rideOtp,
                 otpVerified: false,
                 riderStarted: false,
                 passengerStarted: false,
