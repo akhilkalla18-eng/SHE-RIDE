@@ -105,34 +105,30 @@ export default function Dashboard() {
     }, [firestore]);
     const { data: openRidesForSuggestions, isLoading: areSuggestionsLoading } = useCollection<Ride>(openRidesForSuggestionsQuery);
     
-    // The latest ride the user is driving (or has offered)
-    const myDrivingRidesQuery = React.useMemo(() => {
-        if (!user || !firestore) return null;
-        return query(
-            collection(firestore, "rides"),
-            where("driverId", "==", user.uid),
-            where("status", "in", ["offering", "confirmed", "in-progress"])
-        );
-    }, [firestore, user]);
-    const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myDrivingRidesQuery);
-    
-    // The latest rides where user is a passenger (confirmed/active) OR it's their own open request
-    const myPassengerRidesQuery = React.useMemo(() => {
-        if (!user || !firestore) return null;
-        return query(
-            collection(firestore, "rides"), 
-            where("passengerId", "==", user.uid),
-            where("status", "in", ["pending", "confirmed", "in-progress"])
-        );
-    }, [firestore, user]);
-    const { data: myPassengerRides, isLoading: areMyPassengerRidesLoading } = useCollection<Ride>(myPassengerRidesQuery);
-
-    // The latest requests the user has SENT for other people's rides
+    // Get all pending requests the user has SENT for other people's rides
     const mySentRequestsQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
         return query(collection(firestore, "rideRequests"), where("passengerId", "==", user.uid), where("status", "==", "pending"));
     }, [firestore, user]);
     const { data: mySentRequests, isLoading: areMySentRequestsLoading } = useCollection<RideRequest>(mySentRequestsQuery);
+    
+    // Derive driving rides from allMyRides
+    const myDrivingRides = React.useMemo(() => {
+        if (!user || !allMyRides) return [];
+        return allMyRides.filter(ride => 
+            ride.driverId === user.uid && 
+            ["offering", "confirmed", "in-progress"].includes(ride.status)
+        );
+    }, [allMyRides, user]);
+
+    // Derive passenger rides from allMyRides
+    const myPassengerRides = React.useMemo(() => {
+        if (!user || !allMyRides) return [];
+        return allMyRides.filter(ride => 
+            ride.passengerId === user.uid && 
+            ["pending", "confirmed", "in-progress"].includes(ride.status)
+        );
+    }, [allMyRides, user]);
 
 
     const latestDrivingRide = React.useMemo(() => {
@@ -187,7 +183,7 @@ export default function Dashboard() {
         }
     }, []);
 
-    const isLoading = isUserLoading || isProfileLoading || areMyDrivingRidesLoading || areMyPassengerRidesLoading || areAllMyRidesLoading || areSuggestionsLoading || areMySentRequestsLoading;
+    const isLoading = isUserLoading || isProfileLoading || areAllMyRidesLoading || areSuggestionsLoading || areMySentRequestsLoading;
 
   return (
     <div className="flex flex-col gap-4 md:gap-8">
@@ -971,9 +967,3 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
-
-    
-
-    
-
-    
