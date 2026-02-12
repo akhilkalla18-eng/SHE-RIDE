@@ -83,75 +83,77 @@ export default function Dashboard() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     
-    const activeStatuses: Ride['status'][] = ["pending", "confirmed", "in-progress", "offering"];
+    // --- DATA FETCHING ---
 
-    const userProfileRef = React.useMemo(() => {
+    // 1. Get all rides where the user is the driver
+    const myDrivingRidesQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
-        return doc(firestore, "users", user.uid);
+        return query(collection(firestore, "rides"), where("driverId", "==", user.uid));
     }, [firestore, user]);
-    const { data: profile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
+    const { data: myDrivingRides, isLoading: areDrivingRidesLoading } = useCollection<Ride>(myDrivingRidesQuery);
 
-    // Get all rides where the user is a participant
-    const allMyRidesQuery = React.useMemo(() => {
+    // 2. Get all rides where the user is the passenger
+    const myPassengerRidesQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
-        return query(collection(firestore, "rides"), where("participantIds", "array-contains", user.uid));
+        return query(collection(firestore, "rides"), where("passengerId", "==", user.uid));
     }, [firestore, user]);
-    const { data: allMyRides, isLoading: areAllMyRidesLoading } = useCollection<Ride>(allMyRidesQuery);
+    const { data: myPassengerRides, isLoading: arePassengerRidesLoading } = useCollection<Ride>(myPassengerRidesQuery);
 
-    // Get all open ride offers and requests for the suggestions count
-    const openRidesForSuggestionsQuery = React.useMemo(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "rides"), where("status", "in", ["offering", "pending"]));
-    }, [firestore]);
-    const { data: openRidesForSuggestions, isLoading: areSuggestionsLoading } = useCollection<Ride>(openRidesForSuggestionsQuery);
-    
-    // Get all pending requests the user has SENT for other people's rides
+    // 3. Get all pending requests the user has SENT for other people's rides
     const mySentRequestsQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
         return query(collection(firestore, "rideRequests"), where("passengerId", "==", user.uid), where("status", "==", "pending"));
     }, [firestore, user]);
     const { data: mySentRequests, isLoading: areMySentRequestsLoading } = useCollection<RideRequest>(mySentRequestsQuery);
     
-    // Derive driving rides from allMyRides
-    const myDrivingRides = React.useMemo(() => {
-        if (!user || !allMyRides) return [];
-        return allMyRides.filter(ride => 
-            ride.driverId === user.uid && 
+    // 4. Get all open ride offers and requests for the suggestions count card
+    const openRidesForSuggestionsQuery = React.useMemo(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, "rides"), where("status", "in", ["offering", "pending"]));
+    }, [firestore]);
+    const { data: openRidesForSuggestions, isLoading: areSuggestionsLoading } = useCollection<Ride>(openRidesForSuggestionsQuery);
+
+    // --- DATA PROCESSING & DERIVATION ---
+
+    // Combine driving and passenger rides for total counts and upcoming list
+    const allMyRides = React.useMemo(() => {
+        const ridesMap = new Map<string, Ride>();
+        (myDrivingRides || []).forEach(ride => ridesMap.set(ride.id, ride));
+        (myPassengerRides || []).forEach(ride => ridesMap.set(ride.id, ride));
+        return Array.from(ridesMap.values());
+    }, [myDrivingRides, myPassengerRides]);
+
+    // Derive the latest active offered ride for the "My Ride Status" card
+    const latestDrivingRide = React.useMemo(() => {
+        const activeDrivingRides = (myDrivingRides || []).filter(ride => 
             ["offering", "confirmed", "in-progress"].includes(ride.status)
         );
-    }, [allMyRides, user]);
-
-    // Derive passenger rides from allMyRides
-    const myPassengerRides = React.useMemo(() => {
-        if (!user || !allMyRides) return [];
-        return allMyRides.filter(ride => 
-            ride.passengerId === user.uid && 
-            ["pending", "confirmed", "in-progress"].includes(ride.status)
-        );
-    }, [allMyRides, user]);
-
-
-    const latestDrivingRide = React.useMemo(() => {
-        if (!myDrivingRides || myDrivingRides.length === 0) return null;
-        return myDrivingRides.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        if (activeDrivingRides.length === 0) return null;
+        return activeDrivingRides.sort((a, b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
     }, [myDrivingRides]);
     
-    // Combine open requests (in `rides` table) and sent requests (in `rideRequests` table)
+    // Derive the latest requested/passenger item for the "My Ride Status" card
     const latestRequestedItem = React.useMemo(() => {
-        const latestPassengerRide = myPassengerRides?.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
-        const latestSentRequest = mySentRequests?.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        // Find latest ride where user is passenger (either they created it or were confirmed)
+        const activePassengerRides = (myPassengerRides || []).filter(ride => 
+            ["pending", "confirmed", "in-progress"].includes(ride.status)
+        );
+        const latestPassengerRide = activePassengerRides.sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
+        
+        // Find latest request user sent for other's rides
+        const latestSentRequest = (mySentRequests || []).sort((a,b) => (b.createdAt?.toDate?.()?.getTime() || 0) - (a.createdAt?.toDate?.()?.getTime() || 0))[0];
        
         if (!latestPassengerRide && !latestSentRequest) return null;
         if (!latestPassengerRide) return latestSentRequest;
         if (!latestSentRequest) return latestPassengerRide;
 
-        // Return whichever is newer
+        // If both exist, return the newer one
         const rideTime = latestPassengerRide.createdAt?.toDate?.()?.getTime() || 0;
         const requestTime = latestSentRequest.createdAt?.toDate?.()?.getTime() || 0;
         return rideTime > requestTime ? latestPassengerRide : latestSentRequest;
     }, [myPassengerRides, mySentRequests]);
 
-
+    // Filter all rides for the "Upcoming & Active Rides" table
     const upcomingRides = React.useMemo(() => {
         const allUpcoming = allMyRides?.filter(r => ["pending", "confirmed", "in-progress", "offering"].includes(r.status)) || [];
         if (!searchTerm.trim()) {
@@ -163,11 +165,14 @@ export default function Dashboard() {
         );
     }, [allMyRides, searchTerm]);
 
+    // Calculate stats for the top cards
     const completedRidesCount = React.useMemo(() => allMyRides?.filter(r => r.status === 'completed').length || 0, [allMyRides]);
-    
     const newSuggestionsCount = React.useMemo(() => {
         if(!user || !openRidesForSuggestions) return 0;
-        return openRidesForSuggestions.filter(r => !r.participantIds.includes(user.uid)).length;
+        // A suggestion is an offer by another driver, or a request by another passenger
+        return openRidesForSuggestions.filter(r => {
+            return (r.status === 'offering' && r.driverId !== user.uid) || (r.status === 'pending' && r.passengerId !== user.uid);
+        }).length;
     }, [openRidesForSuggestions, user]);
 
     React.useEffect(() => {
@@ -183,19 +188,19 @@ export default function Dashboard() {
         }
     }, []);
 
-    const isLoading = isUserLoading || isProfileLoading || areAllMyRidesLoading || areSuggestionsLoading || areMySentRequestsLoading;
+    const isLoading = isUserLoading || areDrivingRidesLoading || arePassengerRidesLoading || areSuggestionsLoading || areMySentRequestsLoading;
 
   return (
     <div className="flex flex-col gap-4 md:gap-8">
         <div className="space-y-1.5">
-            {isLoading ? (
+            {isUserLoading ? (
                 <>
                     <Skeleton className="h-9 w-64" />
                     <Skeleton className="h-5 w-80" />
                 </>
             ) : (
                 <>
-                    <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Welcome back, {profile?.name || 'User'}!</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Welcome back, {user?.displayName || 'User'}!</h1>
                     <p className="text-muted-foreground">Here's what's happening on SheRide today.</p>
                 </>
             )}
@@ -209,7 +214,7 @@ export default function Dashboard() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {areAllMyRidesLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{completedRidesCount}</div> }
+              {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{completedRidesCount}</div> }
               <p className="text-xs text-muted-foreground">
                 completed by you
               </p>
@@ -223,7 +228,7 @@ export default function Dashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {areSuggestionsLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">+{newSuggestionsCount}</div> }
+              {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">+{newSuggestionsCount}</div> }
               <p className="text-xs text-muted-foreground">
                 Potential rides waiting
               </p>
@@ -235,7 +240,7 @@ export default function Dashboard() {
               <Bike className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {areAllMyRidesLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{upcomingRides.length}</div> }
+              {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{upcomingRides.length}</div> }
               <p className="text-xs text-muted-foreground">
                 Ready for your next journey
               </p>
@@ -290,7 +295,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
-                {areAllMyRidesLoading ? (
+                {isLoading ? (
                     <div className="space-y-4">
                         <Skeleton className="h-12 w-full" />
                         <Skeleton className="h-12 w-full" />
@@ -316,7 +321,7 @@ export default function Dashboard() {
                                 {new Date(ride.dateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' })}
                             </TableCell>
                              <TableCell className="hidden sm:table-cell">
-                                <AvatarGroup userIds={ride.participantIds} />
+                                <AvatarGroup participantIds={ride.participantIds} />
                             </TableCell>
                             <TableCell className="text-right">
                                 <Button size="sm" variant="outline" asChild>
@@ -951,11 +956,11 @@ function RideProgressBar({ ride }: { ride: Ride }) {
 }
 
 
-function AvatarGroup({ userIds }: { userIds: string[] }) {
+function AvatarGroup({ participantIds }: { participantIds: string[] }) {
     const firestore = useFirestore();
     return (
         <div className="flex -space-x-2 overflow-hidden">
-            {userIds.filter(id => !!id).map((id, index) => {
+            {participantIds.filter(id => !!id).map((id, index) => {
                  const avatar = placeholderImages.find(p => p.id === `avatar${(index % 2) + 1}`)
                  return (
                     <Avatar key={id} className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
@@ -967,3 +972,5 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
