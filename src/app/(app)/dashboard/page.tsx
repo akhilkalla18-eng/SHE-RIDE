@@ -27,7 +27,7 @@ import {
     XAxis,
     YAxis,
   } from "recharts"
-import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc, updateDoc, deleteDoc } from "firebase/firestore"
+import { doc, collection, query, where, writeBatch, serverTimestamp, getDocs, getDoc, updateDoc, deleteDoc, arrayUnion } from "firebase/firestore"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -106,7 +106,7 @@ export default function Dashboard() {
     const { data: openRidesForSuggestions, isLoading: areSuggestionsLoading } = useCollection<Ride>(openRidesForSuggestionsQuery);
     
     // The latest ride the user is driving (or has offered)
-    const myLatestDrivingRideQuery = React.useMemo(() => {
+    const myDrivingRidesQuery = React.useMemo(() => {
         if (!user || !firestore) return null;
         return query(
             collection(firestore, "rides"),
@@ -114,7 +114,7 @@ export default function Dashboard() {
             where("status", "in", ["offering", "pending", "confirmed", "in-progress"])
         );
     }, [firestore, user]);
-    const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myLatestDrivingRideQuery);
+    const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myDrivingRidesQuery);
     
     // The latest rides where user is a passenger (confirmed/active) OR it's their own open request
     const myPassengerRidesQuery = React.useMemo(() => {
@@ -157,7 +157,7 @@ export default function Dashboard() {
 
 
     const upcomingRides = React.useMemo(() => {
-        const allUpcoming = allMyRides?.filter(r => ["pending", "confirmed", "in-progress"].includes(r.status)) || [];
+        const allUpcoming = allMyRides?.filter(r => ["pending", "confirmed", "in-progress", "offering"].includes(r.status)) || [];
         if (!searchTerm.trim()) {
             return allUpcoming;
         }
@@ -333,7 +333,7 @@ export default function Dashboard() {
                   </Table>
                 ) : (
                     <EmptyState 
-                        title={searchTerm ? "No Matching Rides Found" : "No Upcoming Rides"}
+                        title={searchTerm ? "No Matching Rides Found" : "No Upcoming or Requested Rides."}
                         description={searchTerm ? "Your search did not match any upcoming or requested rides." : "You don't have any active rides yet. Find one to get started!"}
                         icon={searchTerm ? Search : Car}
                     />
@@ -437,11 +437,72 @@ function MyRideStatusCard({
     );
 }
 
+function RequestCard({ request, onAccept, onReject, isProcessing }: { request: RideRequest & { id: string }, onAccept: (req: any) => void, onReject: (req: any) => void, isProcessing: boolean }) {
+    const firestore = useFirestore();
+    const passengerProfileRef = React.useMemo(() => doc(firestore, 'users', request.passengerId), [firestore, request.passengerId]);
+    const { data: passengerProfile, isLoading } = useDoc<UserProfile>(passengerProfileRef);
+
+    if (isLoading) {
+        return <div className="flex items-center justify-between p-3 rounded-md border"><Skeleton className="h-8 w-32" /><Skeleton className="h-8 w-20" /></div>;
+    }
+
+    return (
+        <div className="flex items-center justify-between p-3 rounded-md border bg-background gap-2">
+            <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                    <AvatarImage src={(passengerProfile as any)?.photoURL || placeholderImages.find(i => i.id === 'avatar2')?.imageUrl} />
+                    <AvatarFallback>{passengerProfile?.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div>
+                    <p className="font-semibold text-sm">{passengerProfile?.name}</p>
+                    <p className="text-xs text-muted-foreground">{passengerProfile?.city}</p>
+                </div>
+            </div>
+            <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => onReject(request)} disabled={isProcessing}>Reject</Button>
+                <Button size="sm" onClick={() => onAccept(request)} disabled={isProcessing}>Accept</Button>
+            </div>
+        </div>
+    );
+}
+
+function IncomingRequests({ rideId, onAccept, onReject, isProcessing }: { rideId: string, onAccept: (req: any) => void, onReject: (req: any) => void, isProcessing: boolean }) {
+    const firestore = useFirestore();
+    const requestsQuery = React.useMemo(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, "rideRequests"), where("rideId", "==", rideId), where("status", "==", "pending"));
+    }, [firestore, rideId]);
+
+    const { data: requests, isLoading } = useCollection<RideRequest>(requestsQuery);
+
+    if (isLoading) {
+        return <Skeleton className="h-24 w-full" />;
+    }
+
+    if (!requests || requests.length === 0) {
+        return (
+            <div className="text-center py-4 text-sm text-muted-foreground">
+                No pending requests yet.
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-3 pt-4">
+            <h4 className="font-semibold text-sm flex items-center gap-2"><Users className="h-4 w-4" /> Incoming Requests</h4>
+            {requests.map(req => (
+                <RequestCard key={req.id} request={req} onAccept={onAccept} onReject={onReject} isProcessing={isProcessing} />
+            ))}
+        </div>
+    );
+}
+
 function OfferedRideView({ ride }: { ride: Ride }) {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
     const [isCancelling, setIsCancelling] = React.useState(false);
+    const [isProcessing, setIsProcessing] = React.useState(false);
 
     if (!ride) {
         return (
@@ -460,6 +521,89 @@ function OfferedRideView({ ride }: { ride: Ride }) {
         return doc(firestore, 'users', ride.passengerId);
     }, [firestore, ride]);
     const { data: passengerProfile, isLoading: isPassengerLoading } = useDoc<UserProfile>(passengerProfileRef);
+
+    const handleAcceptRequest = async (requestToAccept: RideRequest & { id: string }) => {
+        if (!firestore || !ride || !user) return;
+        setIsProcessing(true);
+    
+        try {
+            const batch = writeBatch(firestore);
+            const rideRef = doc(firestore, 'rides', ride.id);
+            const driverProfileSnap = await getDoc(doc(firestore, 'users', user.uid));
+            const driverProfile = driverProfileSnap.data() as UserProfile;
+
+            const otp = Math.floor(1000 + Math.random() * 9000).toString();
+            batch.update(rideRef, {
+                status: 'confirmed',
+                passengerId: requestToAccept.passengerId,
+                participantIds: arrayUnion(requestToAccept.passengerId),
+                acceptedAt: serverTimestamp(),
+                rideOtp: otp,
+                otpVerified: false,
+                riderStarted: false,
+                passengerStarted: false,
+                riderCompleted: false,
+                passengerCompleted: false,
+            });
+    
+            const requestsQuery = query(collection(firestore, 'rideRequests'), where('rideId', '==', ride.id), where('status', '==', 'pending'));
+            const requestsSnapshot = await getDocs(requestsQuery);
+    
+            requestsSnapshot.forEach(requestDoc => {
+                if (requestDoc.id === requestToAccept.id) {
+                    batch.update(requestDoc.ref, { status: 'accepted' });
+                    const acceptedNotifRef = doc(collection(firestore, "notifications"));
+                    batch.set(acceptedNotifRef, {
+                        userId: requestToAccept.passengerId,
+                        rideId: ride.id,
+                        message: `Your request for the ride with ${driverProfile.name} has been accepted!`,
+                        type: 'ride_accepted',
+                        isRead: false,
+                        createdAt: serverTimestamp()
+                    });
+                } else {
+                    batch.update(requestDoc.ref, { status: 'rejected' });
+                    const rejectedNotifRef = doc(collection(firestore, "notifications"));
+                    batch.set(rejectedNotifRef, {
+                        userId: requestDoc.data().passengerId,
+                        rideId: ride.id,
+                        message: `Your request for the ride with ${driverProfile.name} was not accepted.`,
+                        type: 'ride_cancelled',
+                        isRead: false,
+                        createdAt: serverTimestamp()
+                    });
+                }
+            });
+    
+            await batch.commit();
+            
+            toast({
+                title: 'Ride Confirmed!',
+                description: `You have accepted the request. The ride is now confirmed.`
+            });
+    
+        } catch (error) {
+            console.error("Failed to accept ride request", error);
+            toast({ variant: 'destructive', title: 'Acceptance failed' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+    
+    const handleRejectRequest = async (requestToReject: RideRequest & { id: string }) => {
+        if (!firestore) return;
+        setIsProcessing(true);
+        const requestRef = doc(firestore, 'rideRequests', requestToReject.id);
+        try {
+            await updateDoc(requestRef, { status: 'rejected' });
+            toast({ title: "Request Rejected" });
+        } catch (error) {
+            console.error("Error rejecting request", error);
+            toast({ variant: 'destructive', title: 'Error' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     let statusText = ride.status.replace('_', ' ');
 
@@ -509,7 +653,7 @@ function OfferedRideView({ ride }: { ride: Ride }) {
         }
     }
     
-    const canCancelOffer = ride.status === 'offering' || ride.status === 'pending';
+    const canCancelOffer = ride.status === 'offering';
 
     return (
         <div className="space-y-4">
@@ -525,7 +669,7 @@ function OfferedRideView({ ride }: { ride: Ride }) {
                     ride.status === 'in-progress' ? 'default' :
                     ride.status === 'cancelled' ? 'destructive' :
                     'outline'
-                } className={cn('capitalize', (ride.status === 'offering' || ride.status === 'pending') && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
+                } className={cn('capitalize', ride.status === 'offering' && 'bg-orange-500 text-white hover:bg-orange-500/90')}>{statusText}</Badge>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted text-sm">
                 <div className="font-medium truncate pr-2">{ride.fromLocation}</div>
@@ -534,6 +678,15 @@ function OfferedRideView({ ride }: { ride: Ride }) {
             </div>
             
             <RideProgressBar ride={ride} />
+
+            {ride.status === 'offering' && (
+                 <IncomingRequests 
+                    rideId={ride.id} 
+                    onAccept={handleAcceptRequest} 
+                    onReject={handleRejectRequest} 
+                    isProcessing={isProcessing} 
+                />
+            )}
             
             {ride.status === 'confirmed' && ride.passengerId && (
                 <Card className="bg-muted/50">
@@ -840,5 +993,7 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
 
     
