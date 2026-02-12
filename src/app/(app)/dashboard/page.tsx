@@ -58,7 +58,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
@@ -111,7 +111,7 @@ export default function Dashboard() {
         return query(
             collection(firestore, "rides"),
             where("driverId", "==", user.uid),
-            where("status", "in", ["offering", "pending", "confirmed", "in-progress"])
+            where("status", "in", ["offering", "confirmed", "in-progress"])
         );
     }, [firestore, user]);
     const { data: myDrivingRides, isLoading: areMyDrivingRidesLoading } = useCollection<Ride>(myDrivingRidesQuery);
@@ -362,7 +362,6 @@ function MyRideStatusCard({
                     <CardDescription>Track the progress of your offered and requested rides.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-32 w-full mt-4" />
                 </CardContent>
             </Card>
@@ -391,47 +390,26 @@ function MyRideStatusCard({
         );
     }
 
-    const defaultTab = offeredRide ? 'offered' : 'requested';
-
     return (
         <Card>
             <CardHeader>
                 <CardTitle>My Ride Status</CardTitle>
                 <CardDescription>Track the progress of your offered and requested rides.</CardDescription>
             </CardHeader>
-            <CardContent>
-                <Tabs defaultValue={defaultTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="offered" disabled={!offeredRide}>Rides Offered</TabsTrigger>
-                        <TabsTrigger value="requested" disabled={!requestedItem}>Rides Requested</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="offered" className="mt-4">
-                        {offeredRide ? (
-                            <OfferedRideView ride={offeredRide} />
-                        ) : (
-                            <div className="py-8 text-center">
-                                 <EmptyState
-                                    title="No Rides Offered"
-                                    description="You haven't offered any active rides yet."
-                                    icon={CircleDot}
-                                />
-                            </div>
-                        )}
-                    </TabsContent>
-                    <TabsContent value="requested" className="mt-4">
-                        {requestedItem ? (
-                            <RequestedRideView item={requestedItem} />
-                        ) : (
-                             <div className="py-8 text-center">
-                                <EmptyState
-                                    title="No Rides Requested"
-                                    description="You don't have any active ride requests."
-                                    icon={Search}
-                                />
-                            </div>
-                        )}
-                    </TabsContent>
-                </Tabs>
+            <CardContent className="space-y-6">
+                {offeredRide && (
+                    <div>
+                        <h3 className="text-lg font-semibold tracking-tight mb-2">My Offered Ride</h3>
+                        <OfferedRideView ride={offeredRide} />
+                    </div>
+                )}
+                {offeredRide && requestedItem && <Separator />}
+                {requestedItem && (
+                     <div>
+                        <h3 className="text-lg font-semibold tracking-tight mb-2">My Requested Ride</h3>
+                        <RequestedRideView item={requestedItem} />
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
@@ -993,6 +971,8 @@ function AvatarGroup({ userIds }: { userIds: string[] }) {
         </div>
     )
 }
+
+    
 
     
 
