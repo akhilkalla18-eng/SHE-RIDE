@@ -153,43 +153,101 @@ function RideDetailPage() {
 
     const handleCancel = async () => {
         if (!rideRef || !firestore || !user || !ride) return;
-        
         setIsUpdating(true);
-        const batch = writeBatch(firestore);
     
         try {
-            batch.update(rideRef, { 
-                status: 'cancelled',
-                cancelledBy: user.uid,
-                cancelledAt: serverTimestamp(),
-            });
-            
-            // Notify the other participant if there is one
-            const otherUserId = isCurrentUserDriver ? ride.passengerId : ride.driverId;
-            const currentUserProfile = isCurrentUserDriver ? driverProfile : passengerProfile;
-
-            if (otherUserId && currentUserProfile) {
-                const newNotification: Omit<Notification, 'id'> = {
-                    userId: otherUserId,
-                    rideId: ride.id,
-                    message: `${currentUserProfile.name} has canceled your ride.`,
-                    type: 'ride_cancelled',
-                    cancelledBy: isCurrentUserDriver ? 'provider' : 'passenger',
-                    isRead: false,
-                    createdAt: serverTimestamp()
-                };
-                const newNotifRef = doc(collection(firestore, "notifications"));
-                batch.set(newNotifRef, newNotification);
+            const batch = writeBatch(firestore);
+    
+            // Case A: Driver cancels their own offer that has no passenger yet.
+            if (isCurrentUserDriver && ride.status === 'offering') {
+                batch.update(rideRef, {
+                    status: 'cancelled',
+                    cancelledBy: user.uid,
+                    cancelledAt: serverTimestamp(),
+                });
+                await batch.commit();
+                toast({ title: 'Ride Offer Canceled', description: 'Your offer has been removed.' });
+                router.push('/dashboard');
             }
+            // Case B: A participant (driver or passenger) cancels a CONFIRMED ride.
+            else if (ride.status === 'confirmed' && (isCurrentUserDriver || isCurrentUserPassenger)) {
+                const cancellerProfile = isCurrentUserDriver ? driverProfile : passengerProfile;
+                const otherPartyId = isCurrentUserDriver ? ride.passengerId : ride.driverId;
     
-            await batch.commit();
+                // 1. Reset the main ride document to 'offering'
+                batch.update(rideRef, {
+                    status: 'offering',
+                    passengerId: null,
+                    participantIds: [ride.driverId], // Only driver remains a participant
+                    acceptedAt: null,
+                    rideOtp: null,
+                    otpVerified: false,
+                    riderStarted: false,
+                    passengerStarted: false,
+                    riderCompleted: false,
+                    passengerCompleted: false,
+                });
     
-            toast({
-                title: 'Ride Canceled',
-                description: 'The ride has been successfully canceled.'
-            });
-            router.push('/dashboard');
+                // 2. Find the 'accepted' request and mark it as 'rejected' or 'cancelled'
+                const requestsQuery = query(
+                    collection(firestore, "rideRequests"),
+                    where("rideId", "==", ride.id),
+                    where("status", "==", "accepted")
+                );
+                const requestSnapshot = await getDocs(requestsQuery);
+                if (!requestSnapshot.empty) {
+                    const requestToCancelRef = requestSnapshot.docs[0].ref;
+                    batch.update(requestToCancelRef, { status: isCurrentUserPassenger ? 'cancelled' : 'rejected' });
+                }
     
+                // 3. Notify the other party
+                if (otherPartyId && cancellerProfile) {
+                    const newNotification = {
+                        userId: otherPartyId,
+                        rideId: ride.id,
+                        message: `${cancellerProfile.name} has canceled the confirmed ride. The ride is now open for requests again.`,
+                        type: 'ride_cancelled',
+                        isRead: false,
+                        createdAt: serverTimestamp()
+                    };
+                    const newNotifRef = doc(collection(firestore, "notifications"));
+                    batch.set(newNotifRef, newNotification);
+                }
+    
+                await batch.commit();
+                toast({ title: 'Confirmed Ride Canceled', description: 'The ride is now open for requests again.' });
+                router.push('/dashboard');
+            }
+            // Case C: A participant cancels an in-progress ride (emergency/problem).
+            else if (ride.status === 'in-progress' && (isCurrentUserDriver || isCurrentUserPassenger)) {
+                 batch.update(rideRef, { 
+                    status: 'cancelled',
+                    cancelledBy: user.uid,
+                    cancelledAt: serverTimestamp(),
+                });
+                
+                const otherUserId = isCurrentUserDriver ? ride.passengerId : ride.driverId;
+                const currentUserProfile = isCurrentUserDriver ? driverProfile : passengerProfile;
+    
+                if (otherUserId && currentUserProfile) {
+                    const newNotification = {
+                        userId: otherUserId,
+                        rideId: ride.id,
+                        message: `${currentUserProfile.name} has canceled your ride during the trip.`,
+                        type: 'ride_cancelled',
+                        isRead: false,
+                        createdAt: serverTimestamp()
+                    };
+                    const newNotifRef = doc(collection(firestore, "notifications"));
+                    batch.set(newNotifRef, newNotification);
+                }
+                await batch.commit();
+                toast({ variant: 'destructive', title: 'Ride Canceled', description: 'The in-progress ride has been canceled.' });
+                router.push('/dashboard');
+            }
+            else {
+                 toast({ variant: 'destructive', title: 'Cannot Cancel', description: 'This ride cannot be canceled at its current stage.' });
+            }
         } catch (error) {
             console.error("Failed to cancel ride", error);
             toast({ variant: 'destructive', title: 'Cancellation Failed', description: 'Could not update the ride status.' });

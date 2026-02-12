@@ -140,7 +140,7 @@ export interface RideRequest {
   /**
    * The status of the request, managed by the driver.
    */
-  status: "pending" | "accepted" | "rejected";
+  status: "pending" | "accepted" | "rejected" | "cancelled";
   /**
    * Timestamp of when the request was made.
    */
